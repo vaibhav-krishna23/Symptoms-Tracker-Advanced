@@ -2,9 +2,9 @@
 
 All notable changes to the Symptom Tracker project will be documented in this file.
 
-## [2.0.0-fastmcp] - 2024
+## [2.0.0] - 2024
 
-### 🎉 Major Changes - FastMCP Migration
+### 🎉 Major Release - Real MCP + LangGraph Architecture
 
 #### Added
 - **FastMCP Integration**: Migrated to official Model Context Protocol (MCP) using `fastmcp` library
@@ -43,25 +43,16 @@ All notable changes to the Symptom Tracker project will be documented in this fi
 
 ### 📝 Migration Guide
 
-#### Before (v1.0 - Custom HTTP MCP)
+#### v2.0 Setup (3 Terminals)
 ```bash
-# Terminal 1
-python run_mcp_server.py  # Port 8001
+# Terminal 1: MCP Server
+python run_mcp_server.py
 
-# Terminal 2
-uvicorn api.main:app --reload  # Port 8000
+# Terminal 2: FastAPI Backend
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
-# Terminal 3
-streamlit run streamlit_app/app_v2.py  # Port 8501
-```
-
-#### After (v2.0 - FastMCP)
-```bash
-# Terminal 1
-uvicorn api.main:app --reload  # Port 8000 (FastMCP embedded)
-
-# Terminal 2
-streamlit run streamlit_app/app_v2.py  # Port 8501
+# Terminal 3: Streamlit Frontend
+streamlit run streamlit_app/app_v2.py
 ```
 
 ### 🔧 Technical Details
@@ -91,10 +82,10 @@ async with FastMCPClient("mcp_server/fastmcp_server.py") as mcp_client:
 
 ### 📊 Performance Impact
 
-- **Startup Time**: Faster (no separate server to start)
-- **Request Latency**: +100-200ms (subprocess spawn overhead)
-- **Memory Usage**: Lower (subprocess terminates after use)
-- **Deployment**: Simpler (one less process to manage)
+- **Architecture**: Real MCP protocol with stdio transport
+- **Database**: SQLite support for local development
+- **Deployment**: Simplified with 3 clear processes
+- **Documentation**: Cleaned up, removed Docker files
 
 ### 🔒 Security
 
