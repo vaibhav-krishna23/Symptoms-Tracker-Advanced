@@ -58,3 +58,6 @@ Thumbs.db
 
 # mypy
 .mypy_cache/
+
+#images uploaded
+uploads/
