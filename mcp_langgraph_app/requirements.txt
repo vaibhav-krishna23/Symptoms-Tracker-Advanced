@@ -17,12 +17,13 @@ email-validator
 
 # AI and LLM
 google-generativeai
-langchain
-langchain-core
-langchain-google-genai
-langchain-community
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-google-genai>=0.0.11
+langchain-community>=0.0.20
 langgraph
 langgraph-checkpoint-sqlite
+pydantic>=2.0.0
 
 # MCP
 mcp
