@@ -18,6 +18,7 @@ email-validator
 # AI and LLM
 google-generativeai
 langchain
+langchain-core
 langchain-google-genai
 langchain-community
 langgraph
