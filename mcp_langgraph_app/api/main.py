@@ -24,6 +24,7 @@ from mcp_langgraph_app.config.settings import settings
 from mcp_langgraph_app.langgraph_agent.mcp_client import MCPClient
 from mcp_langgraph_app.langgraph_agent.agent_fixed import SymptomTrackerAgent
 from mcp_langgraph_app.api.appointment_booking import router as appointment_router
+from mcp_langgraph_app.api.fastmcp_routes import router as fastmcp_router
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -44,8 +45,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include appointment booking router
+# Include routers
 app.include_router(appointment_router)
+app.include_router(fastmcp_router)
 
 # Create uploads directory and mount static files
 UPLOAD_DIR = Path("uploads/symptom_photos")
