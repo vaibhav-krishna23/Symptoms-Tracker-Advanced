@@ -112,6 +112,9 @@ async def book_appointment_manual(request: dict, authorization: str = Header(Non
     if not chat_summary:
         chat_summary = session.ai_summary or "High severity symptoms requiring immediate attention"
     
+    # Extract photo URLs from symptoms
+    photo_urls = [s.photo_url for s in symptoms if s.photo_url]
+    
     email_result = await mcp_client.call_tool(
         "send_appointment_emails",
         patient_email=appointment_result["patient_email"],
@@ -121,7 +124,8 @@ async def book_appointment_manual(request: dict, authorization: str = Header(Non
         clinic_name=appointment_result["clinic_location"],
         appointment_date=appointment_result["appointment_date"],
         symptoms_summary=chat_summary,
-        appointment_type="emergency"
+        appointment_type="emergency",
+        photo_urls=photo_urls
     )
     
     return {

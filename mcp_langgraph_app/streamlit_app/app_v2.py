@@ -419,6 +419,45 @@ def symptom_logger_page():
                             "photo_url": None
                         })
     
+    # Photo upload section
+    st.markdown("<div class='sub-header'>📷 Upload Symptom Photos (Optional)</div>", unsafe_allow_html=True)
+    st.info("💡 Upload photos of rashes, wounds, swelling, or any visible symptoms")
+    
+    uploaded_files = st.file_uploader(
+        "Choose image files",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        help="Max 5MB per image. Supported formats: JPG, PNG, WEBP"
+    )
+    
+    photo_urls = []
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            with st.spinner(f"Uploading {uploaded_file.name}..."):
+                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                headers = {"Authorization": f"Bearer {st.session_state['token']}"}
+                
+                try:
+                    response = requests.post(
+                        f"{API_BASE}/api/v1/upload/symptom-photo",
+                        files=files,
+                        headers=headers
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        photo_urls.append(result["photo_url"])
+                        st.success(f"✅ {uploaded_file.name} uploaded successfully")
+                    else:
+                        st.error(f"❌ Failed to upload {uploaded_file.name}")
+                except Exception as e:
+                    st.error(f"❌ Upload error: {str(e)}")
+    
+    # Assign photo URLs to symptoms
+    if photo_urls and selected_symptoms:
+        st.info(f"📎 {len(photo_urls)} photo(s) will be attached to your first symptom")
+        selected_symptoms[0]["photo_url"] = photo_urls[0] if photo_urls else None
+    
     # Free text description
     st.markdown("<div class='sub-header'>📝 Describe Your Symptoms</div>", unsafe_allow_html=True)
     free_text = st.text_area(

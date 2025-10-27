@@ -254,6 +254,9 @@ class SymptomTrackerAgent:
             if not chat_summary:
                 chat_summary = state["ai_analysis"].get("summary", "Severe symptoms requiring immediate attention")
             
+            # Extract photo URLs from symptoms
+            photo_urls = [s.get("photo_url") for s in state["symptoms"] if s.get("photo_url")]
+            
             email_result = await self.mcp_client.call_tool(
                 "send_appointment_emails",
                 patient_email=apt_info["patient_email"],
@@ -263,7 +266,8 @@ class SymptomTrackerAgent:
                 clinic_name=apt_info["clinic_location"],
                 appointment_date=apt_info["appointment_date"],
                 symptoms_summary=chat_summary,
-                appointment_type="emergency"
+                appointment_type="emergency",
+                photo_urls=photo_urls
             )
             
             msg = "Email notifications sent successfully to patient and doctor." if email_result.get("success") else f"Email sending failed: {email_result.get('error', '')}"

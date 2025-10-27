@@ -1,9 +1,13 @@
 """FastAPI application integrating MCP + LangGraph"""
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
+from pathlib import Path
+import uuid
+import shutil
 import sys
 import os
 
@@ -42,6 +46,11 @@ app.add_middleware(
 
 # Include appointment booking router
 app.include_router(appointment_router)
+
+# Create uploads directory and mount static files
+UPLOAD_DIR = Path("uploads/symptom_photos")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Initialize MCP client and LangGraph agent (lazy loading)
 mcp_client = None
@@ -381,6 +390,38 @@ def list_doctors(db: Session = Depends(get_db)):
             }
             for d in doctors
         ]
+    }
+
+
+# Photo Upload
+@app.post("/api/v1/upload/symptom-photo")
+async def upload_symptom_photo(
+    file: UploadFile = File(...),
+    authorization: str = Header(None)
+):
+    """Upload symptom photo"""
+    # Validate file type
+    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
+        raise HTTPException(status_code=400, detail="Only image files allowed")
+    
+    # Validate file size (max 5MB)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File must be less than 5MB")
+    
+    # Generate unique filename
+    file_ext = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    # Save file
+    with file_path.open("wb") as buffer:
+        buffer.write(contents)
+    
+    return {
+        "success": True,
+        "photo_url": f"/uploads/symptom_photos/{unique_filename}",
+        "filename": unique_filename
     }
 
 

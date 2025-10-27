@@ -17,6 +17,7 @@ import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 import google.generativeai as genai
 
 # Load settings
@@ -416,6 +417,7 @@ async def send_appointment_emails(request: Dict[str, Any]):
     appointment_date = request.get("appointment_date")
     symptoms_summary = request.get("symptoms_summary")
     appointment_type = request.get("appointment_type", "emergency")
+    photo_urls = request.get("photo_urls", [])
     
     try:
         if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASS:
@@ -460,6 +462,11 @@ async def send_appointment_emails(request: Dict[str, Any]):
         doctor_msg["From"] = settings.SMTP_USER
         doctor_msg["To"] = doctor_email
         
+        # Add photo references to doctor email if available
+        photo_section = ""
+        if photo_urls:
+            photo_section = f"<p><strong>Symptom Photos:</strong> {len(photo_urls)} image(s) attached</p>"
+        
         doctor_html = f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
@@ -468,10 +475,35 @@ async def send_appointment_emails(request: Dict[str, Any]):
             <p><strong>Patient:</strong> {patient_name} ({patient_email})</p>
             <p><strong>Date:</strong> {formatted_date}</p>
             <p><strong>Symptoms:</strong> {symptoms_summary}</p>
+            {photo_section}
         </body>
         </html>
         """
         doctor_msg.attach(MIMEText(doctor_html, "html"))
+        
+        # Attach symptom photos to doctor email
+        print(f"DEBUG: photo_urls received: {photo_urls}")
+        if photo_urls:
+            uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "symptom_photos")
+            print(f"DEBUG: uploads_dir: {uploads_dir}")
+            for photo_url in photo_urls:
+                try:
+                    # Extract filename from URL (e.g., "http://localhost:8000/uploads/symptom_photos/abc.jpg" -> "abc.jpg")
+                    filename = photo_url.split("/")[-1]
+                    filepath = os.path.join(uploads_dir, filename)
+                    print(f"DEBUG: Trying to attach {filepath}, exists: {os.path.exists(filepath)}")
+                    
+                    if os.path.exists(filepath):
+                        with open(filepath, "rb") as f:
+                            img_data = f.read()
+                        image = MIMEImage(img_data)
+                        image.add_header("Content-Disposition", "attachment", filename=filename)
+                        doctor_msg.attach(image)
+                        print(f"DEBUG: Successfully attached {filename}")
+                except Exception as e:
+                    print(f"Failed to attach photo {photo_url}: {e}")
+        else:
+            print("DEBUG: No photo_urls provided")
         
         # Send emails
         server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
