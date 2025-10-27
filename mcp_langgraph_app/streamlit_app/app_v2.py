@@ -2,11 +2,12 @@
 import streamlit as st
 import requests
 import json
+import os
 from datetime import datetime
 from typing import Dict, Any
 
 # Configuration
-API_BASE = "http://localhost:8000"
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
 # Page config
 st.set_page_config(
