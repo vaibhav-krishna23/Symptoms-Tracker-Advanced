@@ -7,7 +7,7 @@ The Symptom Tracker v2.0 uses a modern, modular architecture with:
 - **LangGraph** for stateful AI workflows
 - **FastAPI** for REST API
 - **Streamlit** for user interface
-- **PostgreSQL** for data persistence
+- **SQLite/PostgreSQL** for data persistence
 - **Google Gemini** for AI analysis
 
 ## Architecture Diagram
@@ -70,23 +70,13 @@ The Symptom Tracker v2.0 uses a modern, modular architecture with:
 └──────────────┘ └──────────────┘ └──────────┘ └──────────────┘
 ```
 
-## Key Architecture Changes (v2.0 FastMCP)
+## Current Architecture (v2.0)
 
-### Before (Custom HTTP MCP)
 ```
-3 Separate Processes:
-1. MCP HTTP Server (port 8001)
+3 Processes:
+1. MCP Server (run_mcp_server.py)
 2. FastAPI Backend (port 8000)
 3. Streamlit Frontend (port 8501)
-
-Communication: HTTP requests to port 8001
-```
-
-### After (FastMCP stdio)
-```
-2 Processes:
-1. FastAPI Backend (port 8000) + Embedded FastMCP
-2. Streamlit Frontend (port 8501)
 
 Communication: stdio subprocess (standard MCP protocol)
 ```
@@ -324,7 +314,7 @@ class FastMCPClient:
 
 **Encryption**: Fernet symmetric encryption for sensitive data
 
-**Connection**: PostgreSQL via Railway (cloud-hosted)
+**Connection**: SQLite (local) or PostgreSQL (cloud)
 
 ## Data Flow
 
@@ -474,10 +464,10 @@ class FastMCPClient:
 ### Development
 ```
 Local Machine:
-- FastAPI + FastMCP: localhost:8000 (embedded)
+- MCP Server: stdio subprocess
+- FastAPI: localhost:8000
 - Streamlit: localhost:8501
-- PostgreSQL: Railway (cloud)
-- Redis: Railway (cloud)
+- Database: SQLite (local file)
 ```
 
 ### Production (Recommended)
