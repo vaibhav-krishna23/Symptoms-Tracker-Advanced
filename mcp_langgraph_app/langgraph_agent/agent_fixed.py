@@ -13,6 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from mcp_langgraph_app.config.settings import settings
+from mcp_langgraph_app.langgraph_agent.memory_manager import get_agent_memory
 
 
 class AgentState(TypedDict):
@@ -99,18 +100,23 @@ class SymptomTrackerAgent:
     async def analyze_symptoms_node(self, state: AgentState) -> dict:
         """Node: Analyze symptoms using AI via MCP."""
         try:
-            # Analyze current symptoms only (no history)
+            # Get agent memory
+            agent_memory = get_agent_memory(state["patient_id"])
+
+            # Analyze current symptoms with historical context
             analysis_result = await self.mcp_client.call_tool(
                 "analyze_symptoms_with_ai",
                 symptoms=state["symptoms"],
-                free_text=state["free_text"]
+                free_text=state["free_text"],
+                current_memory=agent_memory["current_memory"],
+                previous_memory=agent_memory["previous_memory"]
             )
-            
+
             return {
                 "ai_analysis": analysis_result,
                 "messages": [AIMessage(content=f"AI Analysis Complete: {analysis_result.get('summary', '')}")]
             }
-            
+
         except Exception as e:
             return {"error": f"Analysis failed: {str(e)}"}
     

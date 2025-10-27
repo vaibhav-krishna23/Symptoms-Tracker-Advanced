@@ -398,28 +398,55 @@ def symptom_logger_page():
     }
     
     selected_symptoms = []
-    
+
     for category, symptoms in symptom_categories.items():
         with st.expander(f"📋 {category} Symptoms"):
             for symptom in symptoms:
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.columns([0.7, 0.3])
                 with col1:
                     if st.checkbox(symptom, key=f"symptom_{symptom}"):
-                        with col2:
-                            intensity = st.slider(
-                                "Intensity",
-                                1, 10, 5,
-                                key=f"intensity_{symptom}",
-                                help="1=Mild, 10=Severe"
-                            )
-                        selected_symptoms.append({
-                            "symptom": symptom,
-                            "intensity": intensity,
-                            "notes": None,
-                            "photo_url": None
-                        })
-    
-    # Photo upload section
+                        intensity = st.slider(
+                            f"Intensity for {symptom}", 1, 10, 5, key=f"intensity_{symptom}"
+                        )
+                        selected_symptoms.append(
+                            {"symptom": symptom, "intensity": intensity, "type": category}
+                        )
+
+    st.markdown("<div class='sub-header'>➕ Add Custom Symptoms</div>", unsafe_allow_html=True)
+
+    if 'custom_symptoms' not in st.session_state:
+        st.session_state.custom_symptoms = []
+
+    for i, custom_symptom_entry in enumerate(st.session_state.custom_symptoms):
+        col1, col2, col3 = st.columns([0.6, 0.3, 0.1])
+        with col1:
+            st.session_state.custom_symptoms[i]['symptom'] = st.text_input(
+                f"Custom Symptom {i+1}",
+                value=custom_symptom_entry.get('symptom', ''),
+                key=f"custom_symptom_input_{i}"
+            )
+        with col2:
+            st.session_state.custom_symptoms[i]['intensity'] = st.slider(
+                f"Intensity for {st.session_state.custom_symptoms[i]['symptom']}",
+                1, 10, custom_symptom_entry.get('intensity', 5),
+                key=f"intensity_custom_symptom_{i}"
+            )
+        with col3:
+            if st.button("✖️", key=f"remove_custom_symptom_{i}"):   
+                st.session_state.custom_symptoms.pop(i)
+                st.rerun()
+
+        if st.session_state.custom_symptoms[i]['symptom']:
+            selected_symptoms.append({
+                "symptom": st.session_state.custom_symptoms[i]['symptom'],
+                "intensity": st.session_state.custom_symptoms[i]['intensity'],
+                "type": "Custom"
+            })
+
+    if st.button("➕ Add a Custom Symptom"):
+        st.session_state.custom_symptoms.append({'symptom': '', 'intensity': 5})
+        st.rerun()
+
     st.markdown("<div class='sub-header'>📷 Upload Symptom Photos (Optional)</div>", unsafe_allow_html=True)
     st.info("💡 Upload photos of rashes, wounds, swelling, or any visible symptoms")
     

@@ -24,7 +24,7 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 mcp = FastMCP("Symptom Tracker")
 
 @mcp.tool()
-async def analyze_symptoms_with_ai(symptoms: list[dict[str, Any]], free_text: str) -> dict[str, Any]:
+async def analyze_symptoms_with_ai(symptoms: list[dict[str, Any]], free_text: str, current_memory: list[dict[str, Any]] = [], previous_memory: list[dict[str, Any]] = []) -> dict[str, Any]:
     """Analyze patient symptoms using AI and return severity score, summary, and recommendations"""
     try:
         symptom_list = "\n".join([f"- {s.get('symptom', 'Unknown')}: Intensity {s.get('intensity', 0)}/10" for s in symptoms])
@@ -32,6 +32,8 @@ async def analyze_symptoms_with_ai(symptoms: list[dict[str, Any]], free_text: st
         prompt = f"""Analyze ONLY current symptoms and provide JSON response:
 Current Symptoms: {symptom_list}
 Description: {free_text}
+{f"Current Memory (sessions within 12 hours): {current_memory}" if current_memory else ""}
+{f"Previous Memory (sessions within 24 hours): {previous_memory}" if previous_memory else ""}
 
 Return JSON with: summary (max 150 chars), severity (0-10), recommendation (yes/no), red_flags (list), suggested_actions (list), specialization_needed (Cardiologist/Neurologist/Dermatologist/Gastroenterologist/Orthopedist/General Practitioner)"""
 
