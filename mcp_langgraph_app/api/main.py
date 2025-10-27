@@ -21,7 +21,7 @@ from app.schemas.patient import PatientCreate, PatientLogin, Token
 from jose import jwt
 from datetime import datetime, timedelta
 from mcp_langgraph_app.config.settings import settings
-from mcp_langgraph_app.langgraph_agent.mcp_client import MCPClient
+from mcp_langgraph_app.langgraph_agent.fastmcp_client import FastMCPClient
 from mcp_langgraph_app.langgraph_agent.agent_fixed import SymptomTrackerAgent
 from mcp_langgraph_app.api.appointment_booking import router as appointment_router
 from mcp_langgraph_app.api.fastmcp_routes import router as fastmcp_router
@@ -54,25 +54,12 @@ UPLOAD_DIR = Path("uploads/symptom_photos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Initialize MCP client and LangGraph agent (lazy loading)
-mcp_client = None
-agent = None
-
-def get_agent():
-    global mcp_client, agent
-    if agent is None:
-        try:
-            print(f"Initializing MCP client at http://{settings.MCP_SERVER_HOST}:{settings.MCP_SERVER_PORT}")
-            mcp_client = MCPClient(server_url=f"http://{settings.MCP_SERVER_HOST}:{settings.MCP_SERVER_PORT}")
-            print("Initializing LangGraph agent...")
-            agent = SymptomTrackerAgent(mcp_client)
-            print("Agent initialized successfully")
-        except Exception as e:
-            print(f"ERROR initializing agent: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
-    return agent
+# FastMCP server script path
+FASTMCP_SERVER_SCRIPT = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "mcp_server",
+    "fastmcp_server.py"
+)
 
 
 # Pydantic Models
@@ -190,8 +177,8 @@ async def submit_symptoms_langgraph(
     db: Session = Depends(get_db)
 ):
     """
-    Submit symptoms using LangGraph workflow with MCP tools.
-    This is the new MCP + LangGraph powered endpoint.
+    Submit symptoms using LangGraph workflow with FastMCP tools.
+    This is the new FastMCP + LangGraph powered endpoint.
     """
     try:
         patient_id = get_patient_id_from_token(authorization)
@@ -207,14 +194,15 @@ async def submit_symptoms_langgraph(
             for s in payload.symptoms
         ]
         
-        # Process through LangGraph agent
-        agent_instance = get_agent()
-        result = await agent_instance.process_symptoms(
-            patient_id=patient_id,
-            symptoms=symptoms_list,
-            mood=payload.mood,
-            free_text=payload.free_text
-        )
+        # Process through LangGraph agent with FastMCP
+        async with FastMCPClient(FASTMCP_SERVER_SCRIPT) as mcp_client:
+            agent = SymptomTrackerAgent(mcp_client)
+            result = await agent.process_symptoms(
+                patient_id=patient_id,
+                symptoms=symptoms_list,
+                mood=payload.mood,
+                free_text=payload.free_text
+            )
         
         if not result["success"]:
             raise HTTPException(status_code=500, detail=result.get("error", "Processing failed"))
@@ -242,15 +230,15 @@ async def get_symptom_history(
     authorization: str = Header(None),
     limit: int = 10
 ):
-    """Get patient symptom history using MCP tool."""
+    """Get patient symptom history using FastMCP tool."""
     patient_id = get_patient_id_from_token(authorization)
     
-    agent_instance = get_agent()
-    result = await mcp_client.call_tool(
-        "get_patient_history",
-        patient_id=patient_id,
-        limit=limit
-    )
+    async with FastMCPClient(FASTMCP_SERVER_SCRIPT) as mcp_client:
+        result = await mcp_client.call_tool(
+            "get_patient_history",
+            patient_id=patient_id,
+            limit=limit
+        )
     
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("error", "History not found"))
@@ -342,10 +330,10 @@ def get_session_details(
 # MCP Tools Info
 @app.get("/api/v2/mcp/tools")
 async def list_mcp_tools():
-    """List available MCP tools."""
-    agent_instance = get_agent()
-    result = await mcp_client.list_tools()
-    return result
+    """List available FastMCP tools."""
+    async with FastMCPClient(FASTMCP_SERVER_SCRIPT) as mcp_client:
+        tools = await mcp_client.list_tools()
+    return {"tools": [{"name": t.name, "description": t.description} for t in tools]}
 
 
 # Doctor Management (Admin)

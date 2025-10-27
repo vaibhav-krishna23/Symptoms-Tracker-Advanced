@@ -1,4 +1,4 @@
-"""Script to run the MCP HTTP server"""
+"""Script to run the FastMCP server"""
 import sys
 import os
 
@@ -6,8 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 if __name__ == "__main__":
-    print("🚀 Starting MCP HTTP Server...")
-    print("📡 Server will be available at http://localhost:8001")
+    print("🚀 Starting FastMCP Server...")
     print("🛠️  Available tools:")
     print("   - analyze_symptoms_with_ai")
     print("   - find_available_doctor")
@@ -18,6 +17,5 @@ if __name__ == "__main__":
     print("   - check_severity_threshold")
     print("\nPress Ctrl+C to stop the server\n")
     
-    import uvicorn
-    from mcp_langgraph_app.mcp_server.http_server import app
-    uvicorn.run(app, host="localhost", port=8001)
+    from mcp_langgraph_app.mcp_server.fastmcp_server import mcp
+    mcp.run()

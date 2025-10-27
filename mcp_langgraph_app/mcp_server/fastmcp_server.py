@@ -24,7 +24,7 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 mcp = FastMCP("Symptom Tracker")
 
 @mcp.tool()
-async def analyze_symptoms_with_ai(symptoms: list[dict[str, Any]], free_text: str) -> dict[str, Any]:
+async def analyze_symptoms_with_ai(symptoms: list[dict[str, Any]], free_text: str) -> str:
     """Analyze patient symptoms using AI and return severity score, summary, and recommendations"""
     try:
         symptom_list = "\n".join([f"- {s.get('symptom', 'Unknown')}: Intensity {s.get('intensity', 0)}/10" for s in symptoms])
@@ -47,10 +47,10 @@ Return JSON with: summary (max 150 chars), severity (0-10), recommendation (yes/
         result.setdefault("suggested_actions", [])
         result.setdefault("specialization_needed", "General Practitioner")
         
-        return result
+        return json.dumps(result)
     except Exception as e:
         max_intensity = max([s.get('intensity', 0) for s in symptoms]) if symptoms else 0
-        return {
+        result = {
             "summary": f"Reported {len(symptoms)} symptoms with max intensity {max_intensity}",
             "severity": float(max_intensity),
             "recommendation": "yes" if max_intensity >= 8 else "no",
@@ -58,14 +58,15 @@ Return JSON with: summary (max 150 chars), severity (0-10), recommendation (yes/
             "suggested_actions": ["Consult a doctor" if max_intensity >= 8 else "Monitor symptoms"],
             "specialization_needed": "General Practitioner"
         }
+        return json.dumps(result)
 
 @mcp.tool()
-async def check_severity_threshold(severity: float, symptoms: list[dict[str, Any]]) -> dict[str, Any]:
+async def check_severity_threshold(severity: float, symptoms: list[dict[str, Any]]) -> str:
     """Check if symptoms meet emergency threshold (severity >= 8)"""
     max_intensity = max([s.get("intensity", 0) for s in symptoms]) if symptoms else 0
     is_emergency = severity >= 8 or max_intensity >= 8
     
-    return {
+    result = {
         "is_emergency": is_emergency,
         "severity_score": severity,
         "max_intensity": max_intensity,
@@ -73,15 +74,16 @@ async def check_severity_threshold(severity: float, symptoms: list[dict[str, Any
         "recommendation": "immediate_appointment" if is_emergency else "monitor",
         "message": "⚠️ EMERGENCY: Immediate medical attention required!" if is_emergency else "Symptoms logged."
     }
+    return json.dumps(result)
 
 @mcp.tool()
-async def find_available_doctor(city: str, specialization: str, urgency: str = "normal", symptoms: list[dict[str, Any]] = []) -> dict[str, Any]:
+async def find_available_doctor(city: str, specialization: str, urgency: str = "normal", symptoms: list[dict[str, Any]] = []) -> str:
     """Find available doctor in patient's city using AI-powered matching"""
     db = SessionLocal()
     try:
         doctors = db.query(models.Doctor).filter(models.Doctor.city == city).all()
         if not doctors:
-            return {"success": False, "error": f"No doctors available in {city}"}
+            return json.dumps({"success": False, "error": f"No doctors available in {city}"})
         
         doctors_list = "\n".join([f"{i+1}. Dr. {d.full_name} - {d.specialization} at {d.clinic_name}" for i, d in enumerate(doctors)])
         symptoms_text = ", ".join([s.get("symptom", "") for s in symptoms]) if symptoms else "Not specified"
@@ -96,7 +98,7 @@ Return ONLY the number (1, 2, 3, etc.)."""
         selected_index = int(response.text.strip()) - 1
         doctor = doctors[selected_index] if 0 <= selected_index < len(doctors) else doctors[0]
         
-        return {
+        result = {
             "success": True,
             "doctor_id": str(doctor.doctor_id),
             "full_name": doctor.full_name,
@@ -107,9 +109,10 @@ Return ONLY the number (1, 2, 3, etc.)."""
             "contact_number": doctor.contact_number,
             "available_slots": doctor.available_slots or []
         }
+        return json.dumps(result)
     except Exception:
         doctor = doctors[0]
-        return {
+        result = {
             "success": True,
             "doctor_id": str(doctor.doctor_id),
             "full_name": doctor.full_name,
@@ -120,11 +123,12 @@ Return ONLY the number (1, 2, 3, etc.)."""
             "contact_number": doctor.contact_number,
             "available_slots": doctor.available_slots or []
         }
+        return json.dumps(result)
     finally:
         db.close()
 
 @mcp.tool()
-async def save_session_to_database(patient_id: str, symptoms: list[dict[str, Any]], mood: int, free_text: str, ai_analysis: dict[str, Any]) -> dict[str, Any]:
+async def save_session_to_database(patient_id: str, symptoms: list[dict[str, Any]], mood: int, free_text: str, ai_analysis: dict[str, Any]) -> str:
     """Save symptom session to database with AI analysis"""
     db = SessionLocal()
     try:
@@ -148,15 +152,16 @@ async def save_session_to_database(patient_id: str, symptoms: list[dict[str, Any
             crud.create_symptom_entry(db, session.session_id, mood, symptom.get("symptom", ""), symptom.get("intensity", 0), symptom.get("notes", ""), symptom.get("photo_url"))
         
         db.commit()
-        return {"success": True, "session_id": str(session.session_id), "severity": severity, "red_flag": red_flag, "ai_summary": ai_analysis.get("summary", "")}
+        result = {"success": True, "session_id": str(session.session_id), "severity": severity, "red_flag": red_flag, "ai_summary": ai_analysis.get("summary", "")}
+        return json.dumps(result)
     except Exception as e:
         db.rollback()
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)})
     finally:
         db.close()
 
 @mcp.tool()
-async def create_appointment(patient_id: str, doctor_id: str, session_id: str, appointment_type: str = "emergency", notes: str = "") -> dict[str, Any]:
+async def create_appointment(patient_id: str, doctor_id: str, session_id: str, appointment_type: str = "emergency", notes: str = "") -> str:
     """Create appointment in database"""
     db = SessionLocal()
     try:
@@ -164,7 +169,7 @@ async def create_appointment(patient_id: str, doctor_id: str, session_id: str, a
         doctor = db.query(models.Doctor).filter(models.Doctor.doctor_id == doctor_id).first()
         
         if not patient or not doctor:
-            return {"success": False, "error": "Patient or doctor not found"}
+            return json.dumps({"success": False, "error": "Patient or doctor not found"})
         
         days_ahead = 1 if appointment_type == "emergency" else 3
         appointment_date = datetime.utcnow() + timedelta(days=days_ahead)
@@ -184,7 +189,7 @@ async def create_appointment(patient_id: str, doctor_id: str, session_id: str, a
         db.commit()
         db.refresh(appointment)
         
-        return {
+        result = {
             "success": True,
             "appointment_id": str(appointment.appointment_id),
             "patient_name": patient.full_name,
@@ -196,18 +201,19 @@ async def create_appointment(patient_id: str, doctor_id: str, session_id: str, a
             "appointment_type": appointment_type,
             "status": "confirmed"
         }
+        return json.dumps(result)
     except Exception as e:
         db.rollback()
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)})
     finally:
         db.close()
 
 @mcp.tool()
-async def send_appointment_emails(patient_email: str, patient_name: str, doctor_email: str, doctor_name: str, clinic_name: str, appointment_date: str, symptoms_summary: str, appointment_type: str = "emergency", photo_urls: list[str] = []) -> dict[str, Any]:
+async def send_appointment_emails(patient_email: str, patient_name: str, doctor_email: str, doctor_name: str, clinic_name: str, appointment_date: str, symptoms_summary: str, appointment_type: str = "emergency", photo_urls: list[str] = []) -> str:
     """Send appointment confirmation emails to patient and doctor with photo attachments"""
     try:
         if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASS:
-            return {"success": False, "error": "Email configuration not set"}
+            return json.dumps({"success": False, "error": "Email configuration not set"})
         
         try:
             apt_date = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
@@ -265,18 +271,19 @@ async def send_appointment_emails(patient_email: str, patient_name: str, doctor_
             print(f"Failed to send doctor email: {e}")
         
         server.quit()
-        return {"success": patient_sent and doctor_sent, "patient_email_sent": patient_sent, "doctor_email_sent": doctor_sent}
+        result = {"success": patient_sent and doctor_sent, "patient_email_sent": patient_sent, "doctor_email_sent": doctor_sent}
+        return json.dumps(result)
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)})
 
 @mcp.tool()
-async def get_patient_history(patient_id: str, limit: int = 5) -> dict[str, Any]:
+async def get_patient_history(patient_id: str, limit: int = 5) -> str:
     """Get patient's symptom history"""
     db = SessionLocal()
     try:
         patient = db.query(models.Patient).filter(models.Patient.patient_id == patient_id).first()
         if not patient:
-            return {"success": False, "error": "Patient not found"}
+            return json.dumps({"success": False, "error": "Patient not found"})
         
         sessions = db.query(models.Session).filter(models.Session.patient_id == patient_id).order_by(models.Session.created_at.desc()).limit(limit).all()
         history = []
@@ -291,8 +298,13 @@ async def get_patient_history(patient_id: str, limit: int = 5) -> dict[str, Any]
                 "symptoms": [{"symptom": s.symptom, "intensity": s.intensity, "mood": s.mood} for s in symptoms]
             })
         
-        return {"success": True, "patient_id": str(patient.patient_id), "patient_name": patient.full_name, "city": patient.city, "history": history}
+        result = {"success": True, "patient_id": str(patient.patient_id), "patient_name": patient.full_name, "city": patient.city, "history": history}
+        return json.dumps(result)
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return json.dumps({"success": False, "error": str(e)})
     finally:
         db.close()
+
+
+if __name__ == "__main__":
+    mcp.run()

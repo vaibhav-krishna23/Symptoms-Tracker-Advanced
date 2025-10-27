@@ -5,11 +5,18 @@ from app.db.session import get_db
 from app.db import models
 from app import crud
 from datetime import datetime, timedelta
-from mcp_langgraph_app.langgraph_agent.mcp_client import MCPClient
+from mcp_langgraph_app.langgraph_agent.fastmcp_client import FastMCPClient
 from mcp_langgraph_app.config.settings import settings
+import os
 
 router = APIRouter()
-mcp_client = MCPClient(server_url=f"http://{settings.MCP_SERVER_HOST}:{settings.MCP_SERVER_PORT}")
+
+# FastMCP server script path
+FASTMCP_SERVER_SCRIPT = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "mcp_server",
+    "fastmcp_server.py"
+)
 
 def get_patient_id_from_token(authorization: str = Header(None)) -> str:
     from jose import jwt
@@ -74,59 +81,61 @@ async def book_appointment_manual(request: dict, authorization: str = Header(Non
                 needed_specialization = spec
                 break
     
-    # Find doctor using MCP tool with symptoms
-    doctor_result = await mcp_client.call_tool(
-        "find_available_doctor",
-        city=patient.city,
-        specialization=needed_specialization,
-        urgency="emergency",
-        symptoms=[{"symptom": s.symptom, "intensity": s.intensity} for s in symptoms]
-    )
-    
-    if not doctor_result.get("success"):
-        return {"error": "No available doctors found in your city"}
-    
-    # Create appointment using MCP tool
-    appointment_result = await mcp_client.call_tool(
-        "create_appointment",
-        patient_id=patient_id,
-        doctor_id=doctor_result["doctor_id"],
-        session_id=session_id,
-        appointment_type="emergency",
-        notes=session.ai_summary
-    )
-    
-    if not appointment_result.get("success"):
-        return {"error": "Failed to create appointment"}
-    
-    # Send emails using MCP tool
-    from app.core.security import decrypt_bytes
-    logs = crud.get_chat_logs(db, session_id)
-    chat_summary = ""
-    for log in logs:
-        if log.sender == "patient":
-            chat_summary += f"Patient: {decrypt_bytes(log.message)}\n"
-        elif log.sender == "bot":
-            chat_summary += f"AI: {decrypt_bytes(log.message)}\n"
-    
-    if not chat_summary:
-        chat_summary = session.ai_summary or "High severity symptoms requiring immediate attention"
-    
-    # Extract photo URLs from symptoms
-    photo_urls = [s.photo_url for s in symptoms if s.photo_url]
-    
-    email_result = await mcp_client.call_tool(
-        "send_appointment_emails",
-        patient_email=appointment_result["patient_email"],
-        patient_name=appointment_result["patient_name"],
-        doctor_email=appointment_result["doctor_email"],
-        doctor_name=appointment_result["doctor_name"],
-        clinic_name=appointment_result["clinic_location"],
-        appointment_date=appointment_result["appointment_date"],
-        symptoms_summary=chat_summary,
-        appointment_type="emergency",
-        photo_urls=photo_urls
-    )
+    # Use FastMCP for all tool calls
+    async with FastMCPClient(FASTMCP_SERVER_SCRIPT) as mcp_client:
+        # Find doctor using MCP tool with symptoms
+        doctor_result = await mcp_client.call_tool(
+            "find_available_doctor",
+            city=patient.city,
+            specialization=needed_specialization,
+            urgency="emergency",
+            symptoms=[{"symptom": s.symptom, "intensity": s.intensity} for s in symptoms]
+        )
+        
+        if not doctor_result.get("success"):
+            return {"error": "No available doctors found in your city"}
+        
+        # Create appointment using MCP tool
+        appointment_result = await mcp_client.call_tool(
+            "create_appointment",
+            patient_id=patient_id,
+            doctor_id=doctor_result["doctor_id"],
+            session_id=session_id,
+            appointment_type="emergency",
+            notes=session.ai_summary
+        )
+        
+        if not appointment_result.get("success"):
+            return {"error": "Failed to create appointment"}
+        
+        # Send emails using MCP tool
+        from app.core.security import decrypt_bytes
+        logs = crud.get_chat_logs(db, session_id)
+        chat_summary = ""
+        for log in logs:
+            if log.sender == "patient":
+                chat_summary += f"Patient: {decrypt_bytes(log.message)}\n"
+            elif log.sender == "bot":
+                chat_summary += f"AI: {decrypt_bytes(log.message)}\n"
+        
+        if not chat_summary:
+            chat_summary = session.ai_summary or "High severity symptoms requiring immediate attention"
+        
+        # Extract photo URLs from symptoms
+        photo_urls = [s.photo_url for s in symptoms if s.photo_url]
+        
+        email_result = await mcp_client.call_tool(
+            "send_appointment_emails",
+            patient_email=appointment_result["patient_email"],
+            patient_name=appointment_result["patient_name"],
+            doctor_email=appointment_result["doctor_email"],
+            doctor_name=appointment_result["doctor_name"],
+            clinic_name=appointment_result["clinic_location"],
+            appointment_date=appointment_result["appointment_date"],
+            symptoms_summary=chat_summary,
+            appointment_type="emergency",
+            photo_urls=photo_urls
+        )
     
     return {
         "success": True,

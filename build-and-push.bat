@@ -1,7 +1,7 @@
 @echo off
 
 REM Docker Hub username
-SET DOCKER_USERNAME=vaibhavkrishna23
+SET DOCKER_USERNAME=vaibhav547
 
 REM Image version
 SET VERSION=latest
