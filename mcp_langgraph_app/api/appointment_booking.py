@@ -124,18 +124,30 @@ async def book_appointment_manual(request: dict, authorization: str = Header(Non
         # Extract photo URLs from symptoms
         photo_urls = [s.photo_url for s in symptoms if s.photo_url]
         
-        email_result = await mcp_client.call_tool(
-            "send_appointment_emails",
-            patient_email=appointment_result["patient_email"],
-            patient_name=appointment_result["patient_name"],
-            doctor_email=appointment_result["doctor_email"],
-            doctor_name=appointment_result["doctor_name"],
-            clinic_name=appointment_result["clinic_location"],
-            appointment_date=appointment_result["appointment_date"],
-            symptoms_summary=chat_summary,
-            appointment_type="emergency",
-            photo_urls=photo_urls
-        )
+        print(f"\nCalling send_appointment_emails MCP tool...")
+        print(f"   Patient: {appointment_result['patient_email']}")
+        print(f"   Doctor: {appointment_result['doctor_email']}")
+        
+        try:
+            email_result = await mcp_client.call_tool(
+                "send_appointment_emails",
+                patient_email=appointment_result["patient_email"],
+                patient_name=appointment_result["patient_name"],
+                doctor_email=appointment_result["doctor_email"],
+                doctor_name=appointment_result["doctor_name"],
+                clinic_name=appointment_result["clinic_location"],
+                appointment_date=appointment_result["appointment_date"],
+                symptoms_summary=chat_summary,
+                appointment_type="emergency",
+                photo_urls=photo_urls
+            )
+            print(f"SUCCESS: Email tool returned: {email_result}")
+        except Exception as e:
+            print(f"ERROR: Email tool error: {e}")
+            email_result = {"success": False, "error": str(e)}
+    
+    # Log email result for debugging
+    print(f"\nEMAIL RESULT: {email_result}")
     
     return {
         "success": True,
@@ -143,5 +155,7 @@ async def book_appointment_manual(request: dict, authorization: str = Header(Non
         "clinic": appointment_result.get("clinic_location"),
         "appointment_date": appointment_result.get("appointment_date"),
         "emails_sent": email_result.get("success", False),
+        "email_error": email_result.get("error") if not email_result.get("success") else None,
+        "email_details": email_result.get("errors"),
         "message": f"Appointment scheduled with Dr. {appointment_result.get('doctor_name')} at {appointment_result.get('clinic_location')}"
     }

@@ -72,7 +72,7 @@ async def check_severity_threshold(severity: float, symptoms: list[dict[str, Any
         "max_intensity": max_intensity,
         "critical_symptoms": [s.get("symptom") for s in symptoms if s.get("intensity", 0) >= 8],
         "recommendation": "immediate_appointment" if is_emergency else "monitor",
-        "message": "⚠️ EMERGENCY: Immediate medical attention required!" if is_emergency else "Symptoms logged."
+        "message": "EMERGENCY: Immediate medical attention required!" if is_emergency else "Symptoms logged."
     }
     return json.dumps(result)
 
@@ -223,18 +223,18 @@ async def send_appointment_emails(patient_email: str, patient_name: str, doctor_
         
         # Patient Email
         patient_msg = MIMEMultipart("alternative")
-        patient_msg["Subject"] = f"🏥 {'Emergency ' if appointment_type == 'emergency' else ''}Appointment Confirmation"
+        patient_msg["Subject"] = f"{'Emergency ' if appointment_type == 'emergency' else ''}Appointment Confirmation"
         patient_msg["From"] = settings.SMTP_USER
         patient_msg["To"] = patient_email
-        patient_msg.attach(MIMEText(f"<html><body><h2>🏥 Appointment Confirmed</h2><p>Dear <strong>{patient_name}</strong>,</p><p><strong>Doctor:</strong> Dr. {doctor_name}</p><p><strong>Clinic:</strong> {clinic_name}</p><p><strong>Date:</strong> {formatted_date}</p><p><strong>Symptoms:</strong> {symptoms_summary}</p></body></html>", "html"))
+        patient_msg.attach(MIMEText(f"<html><body><h2>Appointment Confirmed</h2><p>Dear <strong>{patient_name}</strong>,</p><p><strong>Doctor:</strong> Dr. {doctor_name}</p><p><strong>Clinic:</strong> {clinic_name}</p><p><strong>Date:</strong> {formatted_date}</p><p><strong>Symptoms:</strong> {symptoms_summary}</p></body></html>", "html"))
         
         # Doctor Email
         doctor_msg = MIMEMultipart("alternative")
-        doctor_msg["Subject"] = f"🚨 New {'Emergency ' if appointment_type == 'emergency' else ''}Patient Appointment"
+        doctor_msg["Subject"] = f"New {'Emergency ' if appointment_type == 'emergency' else ''}Patient Appointment"
         doctor_msg["From"] = settings.SMTP_USER
         doctor_msg["To"] = doctor_email
         photo_section = f"<p><strong>Symptom Photos:</strong> {len(photo_urls)} image(s) attached</p>" if photo_urls else ""
-        doctor_msg.attach(MIMEText(f"<html><body><h2>🚨 New Patient Appointment</h2><p>Dear <strong>Dr. {doctor_name}</strong>,</p><p><strong>Patient:</strong> {patient_name} ({patient_email})</p><p><strong>Date:</strong> {formatted_date}</p><p><strong>Symptoms:</strong> {symptoms_summary}</p>{photo_section}</body></html>", "html"))
+        doctor_msg.attach(MIMEText(f"<html><body><h2>New Patient Appointment</h2><p>Dear <strong>Dr. {doctor_name}</strong>,</p><p><strong>Patient:</strong> {patient_name} ({patient_email})</p><p><strong>Date:</strong> {formatted_date}</p><p><strong>Symptoms:</strong> {symptoms_summary}</p>{photo_section}</body></html>", "html"))
         
         # Attach photos
         if photo_urls:
@@ -252,26 +252,47 @@ async def send_appointment_emails(patient_email: str, patient_name: str, doctor_
                 except Exception as e:
                     print(f"Failed to attach photo: {e}")
         
-        # Send emails
+        # Send emails with detailed logging
+        print(f"Attempting to send emails...")
+        print(f"   Patient: {patient_email}")
+        print(f"   Doctor: {doctor_email}")
+        print(f"   SMTP: {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+        
         server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASS)
         
         patient_sent = False
         doctor_sent = False
+        error_details = []
+        
         try:
             server.send_message(patient_msg)
             patient_sent = True
+            print(f"SUCCESS: Patient email sent successfully")
         except Exception as e:
-            print(f"Failed to send patient email: {e}")
+            error_msg = f"Failed to send patient email: {e}"
+            print(f"ERROR: {error_msg}")
+            error_details.append(error_msg)
+            
         try:
             server.send_message(doctor_msg)
             doctor_sent = True
+            print(f"SUCCESS: Doctor email sent successfully")
         except Exception as e:
-            print(f"Failed to send doctor email: {e}")
+            error_msg = f"Failed to send doctor email: {e}"
+            print(f"ERROR: {error_msg}")
+            error_details.append(error_msg)
         
         server.quit()
-        result = {"success": patient_sent and doctor_sent, "patient_email_sent": patient_sent, "doctor_email_sent": doctor_sent}
+        
+        result = {
+            "success": patient_sent and doctor_sent, 
+            "patient_email_sent": patient_sent, 
+            "doctor_email_sent": doctor_sent,
+            "errors": error_details if error_details else None
+        }
+        print(f"Email result: {result}")
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"success": False, "error": str(e)})
