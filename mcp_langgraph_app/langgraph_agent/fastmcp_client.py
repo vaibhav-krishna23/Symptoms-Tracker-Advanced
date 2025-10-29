@@ -3,6 +3,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from typing import Any
 import os
+import sys
 
 class FastMCPClient:
     """Client for FastMCP server using stdio transport"""
@@ -15,7 +16,7 @@ class FastMCPClient:
     async def __aenter__(self):
         """Start MCP server and establish connection"""
         server_params = StdioServerParameters(
-            command="python",
+            command=sys.executable,
             args=[self.server_script_path],
             env=None
         )
@@ -39,8 +40,15 @@ class FastMCPClient:
     
     async def call_tool(self, tool_name: str, **kwargs) -> Any:
         """Call MCP tool and return result"""
+        import json
         result = await self.session.call_tool(tool_name, arguments=kwargs)
-        return result.content[0].text if result.content else {}
+        if result.content:
+            text = result.content[0].text
+            try:
+                return json.loads(text)
+            except:
+                return text
+        return {}
     
     async def list_tools(self) -> list:
         """List available MCP tools"""

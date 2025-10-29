@@ -1,30 +1,31 @@
-# 🏥 Symptom Tracker v2.0 - MCP + LangGraph Edition
+# 🏥 Symptom Tracker v2.0 - FastMCP + LangGraph Edition
 
-A comprehensive healthcare monitoring system powered by **Model Context Protocol (MCP)**, **LangGraph**, and **Google Gemini AI**.
+A comprehensive healthcare monitoring system powered by **FastMCP (Model Context Protocol)**, **LangGraph**, and **Google Gemini AI**.
 
 ## 🌟 New Features in v2.0
 
-### MCP Integration (FastMCP)
-- **8 Specialized MCP Tools**:
+### FastMCP Integration (Official MCP Protocol)
+- **7 Specialized MCP Tools** using official FastMCP library:
   - `analyze_symptoms_with_ai` - AI-powered symptom analysis with Gemini
+  - `check_severity_threshold` - Emergency detection system
   - `find_available_doctor` - Smart doctor matching by location and specialization
+  - `save_session_to_database` - Persist symptom sessions
   - `create_appointment` - Automated appointment scheduling
   - `send_appointment_emails` - Email notifications to patients and doctors
   - `get_patient_history` - Retrieve patient medical history
-  - `save_session_to_database` - Persist symptom sessions
-  - `check_severity_threshold` - Emergency detection system
   
-- **MCP Resources**: Patient data accessible via `patient://{patient_id}` URI
-- **MCP Prompts**: Pre-configured symptom analysis prompts
+- **MCP Protocol Compliant**: Uses stdio transport (standard MCP)
+- **Embedded Server**: No separate MCP server process needed
+- **Type-Safe Tools**: Proper tool definitions with Python type hints
 
 ### LangGraph Workflow
-- **State-based Agent**: Multi-step workflow with checkpointing
+- **State-based Agent**: Multi-step workflow orchestration
 - **Intelligent Routing**: Conditional edges based on severity
-- **Conversation Memory**: SQLite-based checkpoint system
 - **Error Handling**: Comprehensive error recovery nodes
+- **Async Processing**: Full async/await support
 
 ### Workflow Steps
-1. **Analyze Symptoms** → AI analysis with patient history
+1. **Analyze Symptoms** → AI analysis with Gemini
 2. **Check Severity** → Emergency threshold detection
 3. **Route Decision** → Emergency vs Normal path
 4. **Find Doctor** (if emergency) → Location-based matching
@@ -38,17 +39,19 @@ A comprehensive healthcare monitoring system powered by **Model Context Protocol
 ```
 mcp_langgraph_app/
 ├── mcp_server/
-│   └── tools.py              # FastMCP tools (8 tools + resources)
+│   └── fastmcp_server.py     # FastMCP server with 7 tools
 ├── langgraph_agent/
-│   ├── agent.py              # LangGraph workflow agent
-│   └── mcp_client.py         # MCP client for tool calls
+│   ├── agent_fixed.py         # LangGraph workflow agent
+│   └── fastmcp_client.py      # FastMCP client (stdio transport)
 ├── api/
-│   └── main.py               # FastAPI with MCP + LangGraph
+│   ├── main.py                # FastAPI with FastMCP integration
+│   ├── fastmcp_routes.py      # FastMCP-specific routes
+│   └── appointment_booking.py # Appointment booking endpoint
 ├── streamlit_app/
-│   └── app_v2.py             # Enhanced Streamlit UI
+│   └── app_v2.py              # Enhanced Streamlit UI
 ├── config/
-│   └── settings.py           # Configuration management
-└── requirements.txt          # Dependencies
+│   └── settings.py            # Configuration management
+└── requirements.txt           # Dependencies
 ```
 
 ## 🚀 Installation
@@ -56,13 +59,13 @@ mcp_langgraph_app/
 ### 1. Install Dependencies
 
 ```bash
-cd c:\symptom_tracker_project\symptom_tracker_project\mcp_langgraph_app
-pip install -r requirements.txt
+cd symptom_tracker_project/mcp_langgraph_app
+pip install fastapi uvicorn streamlit sqlalchemy psycopg2-binary redis python-jose cryptography google-generativeai pydantic-settings requests fastmcp mcp langgraph langchain-google-genai
 ```
 
 ### 2. Configure Environment
 
-Copy `.env` from parent directory or create new one:
+Create `.env` file in `symptom_tracker_project/` directory:
 
 ```env
 # Database
@@ -85,59 +88,43 @@ SMTP_PORT=587
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
 
-# MCP Server
-MCP_SERVER_HOST=localhost
-MCP_SERVER_PORT=8001
-
-# LangGraph
-LANGGRAPH_CHECKPOINT_DB=checkpoints.db
+# App
+ENV=development
+API_BASE=http://localhost:8000
 ```
 
 ## 🎯 Running the Application
 
-### Option 1: Run All Services (Recommended)
+### Simple 2-Step Startup (FastMCP is Embedded!)
 
-**Terminal 1 - MCP Server:**
+**Terminal 1 - FastAPI Backend:**
 ```bash
-cd c:\symptom_tracker_project\symptom_tracker_project\mcp_langgraph_app
-python run_mcp_server.py
+cd symptom_tracker_project/mcp_langgraph_app
+python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Terminal 2 - FastAPI Backend:**
+**Terminal 2 - Streamlit Frontend:**
 ```bash
-cd c:\symptom_tracker_project\symptom_tracker_project\mcp_langgraph_app
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Terminal 3 - Streamlit Frontend:**
-```bash
-cd c:\symptom_tracker_project\symptom_tracker_project\mcp_langgraph_app
+cd symptom_tracker_project/mcp_langgraph_app
 streamlit run streamlit_app/app_v2.py
 ```
 
-### Option 2: Test MCP Tools Directly
+**That's it!** FastMCP server runs automatically when needed (no separate process required).
 
-```python
-from mcp_langgraph_app.langgraph_agent.mcp_client import SyncMCPClient
-
-client = SyncMCPClient("http://localhost:8001")
-
-# Test symptom analysis
-result = client.call_tool(
-    "analyze_symptoms_with_ai",
-    symptoms=[{"symptom": "Headache", "intensity": 8}],
-    free_text="Severe headache for 2 days"
-)
-print(result)
-```
+### Access Points
+- **Frontend**: http://localhost:8501
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
 ## 📡 API Endpoints
 
-### v2.0 Endpoints (MCP + LangGraph)
+### v2.0 Endpoints (FastMCP + LangGraph)
 
 - `POST /api/v2/symptoms/submit` - Submit symptoms via LangGraph workflow
-- `GET /api/v2/symptoms/history` - Get patient history via MCP tool
-- `GET /api/v2/mcp/tools` - List available MCP tools
+- `GET /api/v2/symptoms/history` - Get patient history via FastMCP tool
+- `GET /api/v2/mcp/tools` - List available FastMCP tools
+- `POST /api/v2/fastmcp/submit-symptoms` - Direct FastMCP submission
+- `POST /api/v1/sessions/book-appointment` - Manual appointment booking
 
 ### v1.0 Endpoints (Legacy - Still Available)
 
@@ -149,23 +136,25 @@ print(result)
 ## 🔄 LangGraph Workflow Example
 
 ```python
-from mcp_langgraph_app.langgraph_agent.agent import SymptomTrackerAgent
-from mcp_langgraph_app.langgraph_agent.mcp_client import MCPClient
+from mcp_langgraph_app.langgraph_agent.agent_fixed import SymptomTrackerAgent
+from mcp_langgraph_app.langgraph_agent.fastmcp_client import FastMCPClient
+import os
 
-# Initialize
-mcp_client = MCPClient("http://localhost:8001")
-agent = SymptomTrackerAgent(mcp_client)
+# FastMCP server script path
+server_script = os.path.join("mcp_server", "fastmcp_server.py")
 
-# Process symptoms
-result = await agent.process_symptoms(
-    patient_id="uuid-here",
-    symptoms=[
-        {"symptom": "Chest Pain", "intensity": 9},
-        {"symptom": "Shortness of Breath", "intensity": 8}
-    ],
-    mood=2,
-    free_text="Severe chest pain and difficulty breathing"
-)
+# Process symptoms with FastMCP
+async with FastMCPClient(server_script) as mcp_client:
+    agent = SymptomTrackerAgent(mcp_client)
+    result = await agent.process_symptoms(
+        patient_id="uuid-here",
+        symptoms=[
+            {"symptom": "Chest Pain", "intensity": 9},
+            {"symptom": "Shortness of Breath", "intensity": 8}
+        ],
+        mood=2,
+        free_text="Severe chest pain and difficulty breathing"
+    )
 
 # Result includes:
 # - AI analysis
@@ -176,51 +165,58 @@ result = await agent.process_symptoms(
 # - Complete workflow messages
 ```
 
-## 🛠️ MCP Tools Details
+## 🛠️ FastMCP Tools Details
 
 ### 1. analyze_symptoms_with_ai
 **Purpose**: AI-powered symptom analysis using Google Gemini  
-**Input**: symptoms (list), free_text (str), patient_history (optional)  
-**Output**: summary, severity (0-10), recommendation, red_flags, suggested_actions, specialization_needed
+**Input**: symptoms (list), free_text (str)  
+**Output**: JSON string with summary, severity (0-10), recommendation, red_flags, suggested_actions, specialization_needed  
+**Protocol**: Returns JSON string (MCP compliant)
 
-### 2. find_available_doctor
-**Purpose**: Find doctors by location and specialization  
-**Input**: city (str), specialization (optional), urgency (str)  
-**Output**: doctor details or error message
-
-### 3. create_appointment
-**Purpose**: Create medical appointment  
-**Input**: patient_id, doctor_id, session_id, appointment_type, notes  
-**Output**: appointment details with confirmation
-
-### 4. send_appointment_emails
-**Purpose**: Send HTML emails to patient and doctor  
-**Input**: patient/doctor details, appointment info, symptoms summary  
-**Output**: email sending status
-
-### 5. get_patient_history
-**Purpose**: Retrieve patient's symptom history  
-**Input**: patient_id, limit (int)  
-**Output**: patient info and session history
-
-### 6. save_session_to_database
-**Purpose**: Persist symptom session to database  
-**Input**: patient_id, symptoms, mood, free_text, ai_analysis  
-**Output**: session_id and save status
-
-### 7. check_severity_threshold
+### 2. check_severity_threshold
 **Purpose**: Determine if symptoms require emergency care  
 **Input**: severity (float), symptoms (list)  
-**Output**: emergency status, critical symptoms, recommendation
+**Output**: JSON string with emergency status, critical symptoms, recommendation  
+**Threshold**: severity >= 8 or any symptom intensity >= 8
+
+### 3. find_available_doctor
+**Purpose**: Find doctors by location and specialization using AI  
+**Input**: city (str), specialization (str), urgency (str), symptoms (list)  
+**Output**: JSON string with doctor details or error message  
+**AI-Powered**: Uses Gemini to select best matching doctor
+
+### 4. save_session_to_database
+**Purpose**: Persist symptom session to database  
+**Input**: patient_id, symptoms, mood, free_text, ai_analysis  
+**Output**: JSON string with session_id and save status  
+**Encryption**: Encrypts sensitive data with Fernet
+
+### 5. create_appointment
+**Purpose**: Create medical appointment  
+**Input**: patient_id, doctor_id, session_id, appointment_type, notes  
+**Output**: JSON string with appointment details  
+**Date Logic**: +1 day for emergency, +3 days for routine
+
+### 6. send_appointment_emails
+**Purpose**: Send HTML emails to patient and doctor  
+**Input**: patient/doctor details, appointment info, symptoms summary, photo_urls  
+**Output**: JSON string with email sending status  
+**Features**: Attaches symptom photos to doctor email
+
+### 7. get_patient_history
+**Purpose**: Retrieve patient's symptom history  
+**Input**: patient_id, limit (int)  
+**Output**: JSON string with patient info and session history  
+**Decryption**: Decrypts sensitive data for display
 
 ## 🎨 Streamlit UI Features
 
 - **Modern Design**: Healthcare-themed with custom CSS
 - **Real-time Analysis**: Live AI processing with LangGraph
-- **Workflow Visualization**: View LangGraph execution steps
 - **Emergency Alerts**: Animated alerts for severe symptoms
-- **Appointment Tracking**: Complete appointment management
+- **Appointment Booking**: One-click emergency appointment booking
 - **History Dashboard**: Comprehensive health history view
+- **Photo Upload**: Upload symptom photos
 
 ## 🔐 Security Features
 
@@ -229,32 +225,44 @@ result = await agent.process_symptoms(
 - HTTPS-ready configuration
 - Input validation with Pydantic
 - SQL injection protection with SQLAlchemy ORM
+- Encrypted chat logs and symptom notes
 
 ## 📊 Database Schema
 
 Uses existing schema from v1.0:
-- `patients` - User accounts
+- `patients` - User accounts (encrypted secret_key)
 - `doctors` - Healthcare providers
 - `sessions` - Symptom logging sessions
-- `symptom_entries` - Individual symptoms
-- `chat_logs` - AI conversation history
-- `appointments` - Scheduled appointments
+- `symptom_entries` - Individual symptoms (encrypted notes)
+- `chat_logs` - AI conversation history (encrypted messages)
+- `appointments` - Scheduled appointments (encrypted notes)
 - `notifications` - Email logs
 
 ## 🧪 Testing
 
-### Test MCP Server
-```bash
-# List available tools
-curl http://localhost:8001/tools
+### Test FastMCP Tools Directly
+```python
+from mcp_langgraph_app.langgraph_agent.fastmcp_client import FastMCPClient
+import asyncio
 
-# Call a tool
-curl -X POST http://localhost:8001/tools/check_severity_threshold \
-  -H "Content-Type: application/json" \
-  -d '{"severity": 9, "symptoms": [{"symptom": "Chest Pain", "intensity": 9}]}'
+async def test_tool():
+    async with FastMCPClient("mcp_server/fastmcp_server.py") as client:
+        # List available tools
+        tools = await client.list_tools()
+        print(f"Available tools: {[t.name for t in tools]}")
+        
+        # Call a tool
+        result = await client.call_tool(
+            "check_severity_threshold",
+            severity=9.0,
+            symptoms=[{"symptom": "Chest Pain", "intensity": 9}]
+        )
+        print(result)
+
+asyncio.run(test_tool())
 ```
 
-### Test LangGraph Workflow
+### Test API Endpoints
 ```bash
 # Submit symptoms via v2 API
 curl -X POST http://localhost:8000/api/v2/symptoms/submit \
@@ -270,8 +278,8 @@ curl -X POST http://localhost:8000/api/v2/symptoms/submit \
 ## 📈 Monitoring
 
 - **Health Check**: `GET /health` - System status
-- **MCP Tools**: `GET /api/v2/mcp/tools` - Available tools
-- **Workflow Logs**: Included in API responses
+- **FastMCP Tools**: `GET /api/v2/mcp/tools` - Available tools
+- **API Docs**: `GET /docs` - Interactive API documentation
 
 ## 🔄 Migration from v1.0
 
@@ -283,21 +291,22 @@ v2.0 is **backward compatible** with v1.0:
 
 **New in v2.0**:
 - Use `/api/v2/symptoms/submit` for LangGraph workflow
-- MCP tools provide modular functionality
-- Enhanced AI analysis with patient history
+- FastMCP tools provide modular functionality
+- Enhanced AI analysis with Gemini
 - Automatic emergency handling
+- No separate MCP server needed
 
 ## 🐛 Troubleshooting
 
-### MCP Server Not Starting
-- Check port 8001 is available
-- Verify database connection in `.env`
-- Ensure all dependencies installed
+### FastMCP Connection Issues
+- Ensure Python virtual environment is activated
+- Check that `fastmcp` and `mcp` packages are installed
+- Verify `fastmcp_server.py` path is correct
 
 ### LangGraph Workflow Fails
-- Check MCP server is running
 - Verify Gemini API key is valid
-- Check `checkpoints.db` permissions
+- Check database connection
+- Ensure all dependencies installed
 
 ### Email Not Sending
 - Verify SMTP credentials
@@ -307,34 +316,35 @@ v2.0 is **backward compatible** with v1.0:
 ## 📚 Documentation
 
 - **FastMCP**: https://github.com/jlowin/fastmcp
+- **MCP Protocol**: https://modelcontextprotocol.io/
 - **LangGraph**: https://langchain-ai.github.io/langgraph/
 - **Google Gemini**: https://ai.google.dev/
 
-## 🎯 Next Steps
+## 🎯 What's New in FastMCP Implementation
 
-1. **Add More MCP Tools**:
-   - Medication tracking
-   - Lab results integration
-   - Telemedicine scheduling
+### ✅ Advantages Over Previous Version
+1. **Official Protocol**: Uses standard MCP specification
+2. **No Separate Server**: Embedded FastMCP (no port 8001 needed)
+3. **stdio Transport**: Standard MCP communication method
+4. **Type Safety**: Proper Python type hints
+5. **Simpler Deployment**: 2 processes instead of 3
+6. **Better Error Handling**: MCP protocol error responses
+7. **Interoperable**: Works with any MCP-compatible client
 
-2. **Enhance LangGraph**:
-   - Multi-turn conversations
-   - Symptom clarification questions
-   - Treatment plan generation
-
-3. **Advanced Features**:
-   - Voice input for symptoms
-   - Image analysis for rashes
-   - Wearable device integration
+### 🔄 Architecture Changes
+- **Before**: Custom HTTP server on port 8001
+- **After**: FastMCP with stdio transport (embedded)
+- **Before**: 3 separate processes (MCP server, API, Streamlit)
+- **After**: 2 processes (API with embedded FastMCP, Streamlit)
 
 ## 📞 Support
 
 - **Technical Issues**: Check logs in terminal
 - **API Documentation**: http://localhost:8000/docs
-- **MCP Tools**: http://localhost:8001/tools
+- **FastMCP Tools**: Use `/api/v2/mcp/tools` endpoint
 
 ---
 
-**Version**: 2.0.0  
-**Powered by**: MCP + LangGraph + Google Gemini AI  
-**Developed by**: Value Health Inc.
+**Version**: 2.0.0-fastmcp  
+**Powered by**: FastMCP + LangGraph + Google Gemini AI  
+**Developed by**: Value Health AI Inc.

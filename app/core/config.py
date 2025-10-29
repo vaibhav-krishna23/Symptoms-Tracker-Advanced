@@ -1,10 +1,11 @@
 """Initialization or Placeholder File."""
 # app/core/config.py
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 class Settings(BaseSettings):
     DATABASE_URL: str
-    REDIS_URL: str
+    REDIS_URL: Optional[str] = None
     FERNET_KEY: str
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"

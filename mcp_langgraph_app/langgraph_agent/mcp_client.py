@@ -1,6 +1,7 @@
 """MCP Client for connecting to FastMCP server"""
 import httpx
 import json
+import os
 from typing import Any, Dict, Optional
 import asyncio
 
@@ -8,13 +9,15 @@ import asyncio
 class MCPClient:
     """Client for interacting with MCP server tools."""
     
-    def __init__(self, server_url: str = "http://localhost:8001"):
+    def __init__(self, server_url: str = None):
         """
         Initialize MCP client.
         
         Args:
             server_url: URL of the MCP server
         """
+        if server_url is None:
+            server_url = os.getenv("MCP_BASE", "https://symptoms-tracker-mcp.onrender.com")
         self.server_url = server_url
         self.client = httpx.AsyncClient(timeout=30.0)
     
@@ -85,7 +88,9 @@ class MCPClient:
 class SyncMCPClient:
     """Synchronous wrapper for MCP client."""
     
-    def __init__(self, server_url: str = "http://localhost:8001"):
+    def __init__(self, server_url: str = None):
+        if server_url is None:
+            server_url = os.getenv("MCP_BASE", "https://symptoms-tracker-mcp.onrender.com")
         self.server_url = server_url
         self.client = httpx.Client(timeout=30.0)
     

@@ -208,7 +208,11 @@ class SymptomTrackerAgent:
         if state.get("error"):
             return "error"
         
-        # Always complete - user will decide on appointment booking via UI
+        # If emergency and doctor found, create appointment automatically
+        if (state["severity_check"].get("is_emergency", False) and 
+            state.get("doctor_info", {}).get("success", False)):
+            return "create_appointment"
+        
         return "complete"
     
     async def create_appointment_node(self, state: AgentState) -> dict:

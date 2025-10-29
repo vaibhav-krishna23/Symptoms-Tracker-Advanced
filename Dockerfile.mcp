@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 8001
 
-CMD ["python", "mcp_langgraph_app/run_mcp_server.py"]
+CMD ["python", "-m", "mcp_langgraph_app.mcp_server.fastmcp_server"]

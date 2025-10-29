@@ -1,21 +1,21 @@
-# 🏥 Symptom Tracker Advanced - AI-Powered Healthcare Monitoring
+# 🏥 Symptom Tracker - MCP + LangGraph Healthcare System
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Latest-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-Official-purple.svg)](https://github.com/jlowin/fastmcp)
 
-An advanced healthcare monitoring system with **LangGraph workflow orchestration**, **AI-powered symptom analysis**, **intelligent doctor matching**, and **automated appointment booking**.
+AI-powered healthcare monitoring with **real MCP (Model Context Protocol)** and **LangGraph workflow orchestration**.
 
-## 🌟 Key Features
+## 🌟 Features
 
-- 🤖 **LangGraph Workflow**: Stateful multi-node workflow with conditional routing
-- 🧠 **AI-Powered Analysis**: Google Gemini 2.5 Flash for symptom severity scoring
-- 🏥 **Intelligent Doctor Matching**: LLM-based doctor selection by specialization
-- 📅 **Smart Appointment Booking**: User-confirmed emergency appointments
-- 📧 **Email Notifications**: Automated emails to patients and doctors
-- 🎨 **Modern Dark UI**: Professional healthcare-themed Streamlit interface
-- 🔐 **Secure Authentication**: JWT-based auth with encrypted data storage
+- 🔧 **Real MCP**: Official FastMCP with stdio transport (7 tools)
+- 🤖 **LangGraph**: 8-node stateful workflow with conditional routing
+- 🧠 **AI Analysis**: Google Gemini 2.5 Flash symptom severity scoring
+- 🏥 **Smart Doctor Matching**: AI-powered specialist selection
+- 📅 **Auto Appointments**: Emergency appointment booking with email notifications
+- 🔐 **Secure**: JWT auth + Fernet encryption
+- 🎨 **Modern UI**: Dark-themed Streamlit interface
 
 ---
 
@@ -34,27 +34,31 @@ symptom_tracker_project/
 │   ├── services/                 # Business logic (legacy)
 │   └── crud.py                   # 🔄 Database CRUD operations
 │
-└── mcp_langgraph_app/           # 🚀 V2.0 APPLICATION
+└── mcp_langgraph_app/           # 🚀 V2.0 APPLICATION (FastMCP)
     ├── api/
-    │   ├── main.py              # FastAPI v2 backend
-    │   └── appointment_booking.py  # Manual appointment endpoint
+    │   ├── main.py              # FastAPI v2 backend with FastMCP
+    │   ├── appointment_booking.py  # Manual appointment endpoint
+    │   └── fastmcp_routes.py    # FastMCP-specific routes
     │
     ├── config/
     │   └── settings.py          # Centralized configuration
     │
     ├── langgraph_agent/         # 🧠 LANGGRAPH WORKFLOW
     │   ├── agent_fixed.py       # 8-node workflow with routing
-    │   └── mcp_client.py        # HTTP client for MCP tools
+    │   └── fastmcp_client.py    # FastMCP client (stdio transport)
     │
-    ├── mcp_server/              # 🛠️ MCP-LIKE TOOL SERVER
-    │   └── http_server.py       # 7 tools (AI, doctor, appointments, etc.)
+    ├── mcp_server/              # 🛠️ FASTMCP SERVER (Official MCP)
+    │   └── fastmcp_server.py    # 7 tools with @mcp.tool() decorators
     │
     ├── streamlit_app/           # 🎨 FRONTEND UI
     │   └── app_v2.py            # Dark theme Streamlit interface
     │
     ├── .env.example             # Environment template
     ├── requirements.txt         # Python dependencies
-    └── README.md                # This file
+    ├── README.md                # Detailed documentation
+    ├── ARCHITECTURE.md          # Architecture diagrams
+    ├── CHANGELOG.md             # Version history
+    └── COMMIT_GUIDE.md          # Git commit guide
 ```
 
 ---
@@ -85,9 +89,9 @@ symptom_tracker_project/
 └────────────────────────────┬────────────────────────────────┘
                              │ HTTP Calls
 ┌────────────────────────────▼────────────────────────────────┐
-│         MCP TOOL SERVER (http_server.py)                    │
+│      FASTMCP SERVER (fastmcp_server.py - Embedded)          │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │  7 Tools:                                            │  │
+│  │  7 FastMCP Tools (@mcp.tool() decorators):          │  │
 │  │  1. analyze_symptoms_with_ai (Gemini AI)            │  │
 │  │  2. check_severity_threshold                         │  │
 │  │  3. find_available_doctor (LLM-powered)             │  │
@@ -95,6 +99,9 @@ symptom_tracker_project/
 │  │  5. create_appointment                               │  │
 │  │  6. send_appointment_emails                          │  │
 │  │  7. get_patient_history                              │  │
+│  │                                                       │  │
+│  │  Protocol: Official MCP with stdio transport        │  │
+│  │  Returns: JSON strings (MCP compliant)              │  │
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────────┬────────────────────────────────┘
                              │ Uses
@@ -139,7 +146,7 @@ The `app/` folder contains **SHARED CORE MODULES** that are used by the entire v
 ### Prerequisites
 
 - Python 3.11+
-- PostgreSQL database (Railway or local)
+- SQLite (included) or PostgreSQL
 - Gmail account with app password
 - Google Gemini API key
 
@@ -179,38 +186,43 @@ The `app/` folder contains **SHARED CORE MODULES** that are used by the entire v
 
    Required variables:
    ```env
-   DATABASE_URL=postgresql://user:pass@host:port/dbname
+   # Database (SQLite for local dev)
+   DATABASE_URL=sqlite:///./symptom_tracker.db
+   
+   # AI
    GEMINI_API_KEY=your_gemini_api_key
+   
+   # Email
    SMTP_USER=your_email@gmail.com
    SMTP_PASS=your_app_password
+   
+   # Security
    JWT_SECRET_KEY=your_secret_key
    FERNET_KEY=your_fernet_key
    ```
 
-5. **Setup database**
+5. **Add sample doctor**
    ```bash
-   python setup_database.py
+   python add_doctor.py
    ```
 
 ---
 
 ## 🏃 Running the Application
 
-You need to run **3 services** in separate terminals:
+**3 Terminal Setup:**
 
-### Terminal 1: MCP Tool Server
+### Terminal 1: MCP Server
 ```bash
 cd mcp_langgraph_app
-python mcp_server/http_server.py
+python run_mcp_server.py
 ```
-**Runs on:** `http://localhost:8001`
 
 ### Terminal 2: FastAPI Backend
 ```bash
 cd mcp_langgraph_app
-uvicorn api.main:app --reload --port 8000
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
-**Runs on:** `http://localhost:8000`
 **API Docs:** `http://localhost:8000/docs`
 
 ### Terminal 3: Streamlit Frontend
@@ -218,7 +230,7 @@ uvicorn api.main:app --reload --port 8000
 cd mcp_langgraph_app
 streamlit run streamlit_app/app_v2.py
 ```
-**Runs on:** `http://localhost:8501`
+**Frontend:** `http://localhost:8501`
 
 ---
 
@@ -261,12 +273,12 @@ User Submits Symptoms
 
 | Layer | Technology |
 |-------|-----------|
+| **MCP** | FastMCP (Official Protocol) |
 | **Frontend** | Streamlit (Dark Theme UI) |
 | **Backend** | FastAPI (Async REST API) |
 | **Workflow** | LangGraph (State Management) |
 | **AI** | Google Gemini 2.5 Flash |
-| **Database** | PostgreSQL (Railway) |
-| **Cache** | Redis (Railway) |
+| **Database** | SQLite / PostgreSQL |
 | **Auth** | JWT + Fernet Encryption |
 | **Email** | Gmail SMTP |
 
@@ -285,13 +297,12 @@ User Submits Symptoms
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing Emergency Workflow
 
-```bash
-# Test appointment booking
-cd mcp_langgraph_app
-python test_appointment_booking.py
-```
+1. Register with your city name
+2. Log symptoms with intensity ≥ 8 (e.g., Chest Pain: 9)
+3. Describe: "Severe chest pain for 30 minutes"
+4. Watch LangGraph execute the emergency workflow!
 
 ---
 
@@ -324,4 +335,15 @@ This application is for symptom tracking and monitoring purposes only. It does *
 
 ---
 
-**Made with ❤️ by Vaibhav Krishna**
+## 🎯 Testing Emergency Workflow
+
+1. Register with your city name
+2. Log symptoms with intensity ≥ 8 (e.g., Chest Pain: 9)
+3. Describe: "Severe chest pain for 30 minutes"
+4. Watch LangGraph execute the emergency workflow!
+
+---
+
+**Version**: 2.0.0  
+**Made with ❤️ by Vaibhav Krishna**  
+**Powered by**: FastMCP + LangGraph + Google Gemini AI
