@@ -81,17 +81,6 @@ class SymptomTrackerAgent:
         )
         workflow.add_edge("save_session", "complete")
         workflow.add_edge("find_doctor", "save_session")
-        workflow.add_conditional_edges(
-            "save_session",
-            self.route_after_save,
-            {
-                "create_appointment": "create_appointment",
-                "complete": "complete",
-                "error": "error_handler"
-            }
-        )
-        workflow.add_edge("create_appointment", "send_emails")
-        workflow.add_edge("send_emails", "complete")
         workflow.add_edge("complete", END)
         workflow.add_edge("error_handler", END)
         
@@ -203,17 +192,7 @@ class SymptomTrackerAgent:
         except Exception as e:
             return {"error": f"Save session failed: {str(e)}"}
     
-    def route_after_save(self, state: AgentState) -> Literal["create_appointment", "complete", "error"]:
-        """Route after saving session."""
-        if state.get("error"):
-            return "error"
-        
-        # If emergency and doctor found, create appointment automatically
-        if (state["severity_check"].get("is_emergency", False) and 
-            state.get("doctor_info", {}).get("success", False)):
-            return "create_appointment"
-        
-        return "complete"
+
     
     async def create_appointment_node(self, state: AgentState) -> dict:
         """Node: Create appointment."""
@@ -299,16 +278,11 @@ class SymptomTrackerAgent:
         ]
         
         if state["severity_check"].get("is_emergency"):
-            summary_parts.append("\n⚠️ Emergency case detected!")
+            summary_parts.append("\n⚠️ High severity detected!")
+            summary_parts.append("\n💡 Recommendation: Consider booking an appointment with a doctor.")
             
-            if state.get("appointment_info", {}).get("success"):
-                apt = state["appointment_info"]
-                summary_parts.append(f"\n🏥 Appointment scheduled with Dr. {apt.get('doctor_name', '')}")
-                summary_parts.append(f"\n📍 Location: {apt.get('clinic_location', '')}")
-                summary_parts.append(f"\n📅 Date: {apt.get('appointment_date', '')}")
-                
-                if state.get("email_status", {}).get("success"):
-                    summary_parts.append("\n📧 Confirmation emails sent")
+            if state.get("doctor_info", {}).get("success"):
+                summary_parts.append(f"\n🏥 Available: Dr. {state['doctor_info'].get('full_name', '')} at {state['doctor_info'].get('clinic_name', '')}")
         
         return {"messages": [AIMessage(content="".join(summary_parts))]}
     

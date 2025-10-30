@@ -295,8 +295,9 @@ def get_session_details(
     ).all()
     
     # Get chat logs
-    from app.core.security import decrypt_bytes
     chat_logs = crud.get_chat_logs(db, session_id)
+    
+    from app.core import security
     
     return {
         "session": {
@@ -310,21 +311,133 @@ def get_session_details(
             {
                 "symptom": s.symptom,
                 "intensity": s.intensity,
-                "mood": s.mood,
-                "notes": decrypt_bytes(s.notes) if s.notes else None
+                "notes": security.decrypt_bytes(s.notes) if s.notes else None,
+                "photo_url": s.photo_url
             }
             for s in symptoms
         ],
         "chat_logs": [
             {
                 "sender": log.sender,
-                "message": decrypt_bytes(log.message) if log.message else "",
-                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
-                "intent": log.intent
+                "message": security.decrypt_bytes(log.message) if log.message else "",
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None
             }
             for log in chat_logs
         ]
     }
+
+
+@app.get("/api/v1/dashboard/insights")
+def get_dashboard_insights(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Get comprehensive dashboard insights."""
+    try:
+        from sqlalchemy import desc
+        from datetime import datetime, timedelta, timezone
+        from collections import defaultdict
+        
+        patient_id = get_patient_id_from_token(authorization)
+        sessions = db.query(models.Session).filter(
+            models.Session.patient_id == patient_id
+        ).order_by(desc(models.Session.start_time)).all()
+        
+        if not sessions:
+            return {"total_sessions": 0, "total_symptoms": 0, "avg_severity": 0, "red_flag_count": 0, "weekly_trend": [], "monthly_overview": {}, "symptom_patterns": {}, "top_symptoms": {}}
+        
+        symptoms = db.query(models.SymptomEntry).join(models.Session).filter(models.Session.patient_id == patient_id).all()
+        appointments = db.query(models.Appointment).filter(models.Appointment.patient_id == patient_id).all()
+        
+        # Current week daily trend
+        now = datetime.now(timezone.utc)
+        week_start = now - timedelta(days=now.weekday())
+        daily_data = {}
+        for i in range(7):
+            day = week_start + timedelta(days=i)
+            daily_data[day.strftime("%Y-%m-%d")] = {"day": day.strftime("%a"), "severity": 0, "count": 0}
+        
+        for s in sessions:
+            if s.start_time:
+                try:
+                    st = s.start_time if s.start_time.tzinfo else s.start_time.replace(tzinfo=timezone.utc)
+                    if st >= week_start:
+                        day_key = st.strftime("%Y-%m-%d")
+                        if day_key in daily_data:
+                            daily_data[day_key]["count"] += 1
+                            daily_data[day_key]["severity"] += float(s.severity_score or 0)
+                except:
+                    pass
+        
+        weekly_trend = [{"day": v["day"], "avg_severity": round(v["severity"] / v["count"], 1) if v["count"] > 0 else 0} for k, v in sorted(daily_data.items())]
+        
+        # Severity distribution
+        severity_dist = {"Low (0-3)": 0, "Moderate (4-6)": 0, "High (7-10)": 0}
+        for s in sessions:
+            sev = float(s.severity_score or 0)
+            if sev <= 3:
+                severity_dist["Low (0-3)"] += 1
+            elif sev <= 6:
+                severity_dist["Moderate (4-6)"] += 1
+            else:
+                severity_dist["High (7-10)"] += 1
+        
+        # Monthly overview
+        try:
+            current_month = now.strftime("%Y-%m")
+            month_sessions = [s for s in sessions if s.start_time and s.start_time.strftime("%Y-%m") == current_month]
+            day_names = [s.start_time.strftime("%A") for s in month_sessions if s.start_time]
+            most_active = max(set(day_names), key=day_names.count) if day_names else "N/A"
+        except:
+            month_sessions = []
+            most_active = "N/A"
+        
+        monthly_overview = {
+            "month": now.strftime("%B %Y"),
+            "total_sessions": len(month_sessions),
+            "avg_severity": round(sum(float(s.severity_score or 0) for s in month_sessions) / len(month_sessions), 1) if month_sessions else 0,
+            "red_flags": sum(1 for s in month_sessions if s.red_flag),
+            "most_active_day": most_active
+        }
+        
+        # Symptom patterns
+        symptom_by_time = defaultdict(lambda: {"morning": 0, "afternoon": 0, "evening": 0, "night": 0})
+        for symptom in symptoms:
+            try:
+                dt = symptom.date if hasattr(symptom, 'date') and symptom.date else None
+                if dt:
+                    hour = dt.hour
+                    time_of_day = "morning" if 6 <= hour < 12 else "afternoon" if 12 <= hour < 18 else "evening" if 18 <= hour < 22 else "night"
+                    symptom_by_time[symptom.symptom][time_of_day] += 1
+            except:
+                pass
+        
+        # Top symptoms
+        symptom_counts = {}
+        for s in symptoms:
+            symptom_counts[s.symptom] = symptom_counts.get(s.symptom, 0) + 1
+        top_symptoms = dict(sorted(symptom_counts.items(), key=lambda x: x[1], reverse=True)[:5]) if symptom_counts else {}
+        
+        return {
+            "total_sessions": len(sessions),
+            "total_symptoms": len(symptoms),
+            "avg_severity": round(sum(float(s.severity_score or 0) for s in sessions) / len(sessions), 1),
+            "red_flag_count": sum(1 for s in sessions if s.red_flag),
+            "appointments_count": len(appointments),
+            "weekly_trend": weekly_trend,
+            "monthly_overview": monthly_overview,
+            "severity_distribution": severity_dist,
+            "top_symptoms": top_symptoms,
+            "avg_mood": round(sum(s.mood for s in symptoms if hasattr(s, 'mood') and s.mood) / len([s for s in symptoms if hasattr(s, 'mood') and s.mood]), 1) if any(hasattr(s, 'mood') and s.mood for s in symptoms) else 0
+        }
+    except Exception as e:
+        import traceback
+        print("\n" + "="*60)
+        print("ERROR IN /api/v1/dashboard/insights:")
+        print("="*60)
+        traceback.print_exc()
+        print("="*60 + "\n")
+        raise HTTPException(status_code=500, detail=f"Dashboard insights error: {str(e)}")
 
 
 # MCP Tools Info

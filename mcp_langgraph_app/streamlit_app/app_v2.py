@@ -491,13 +491,66 @@ def symptom_logger_page():
         st.info(f"📎 {len(photo_urls)} photo(s) will be attached to your first symptom")
         selected_symptoms[0]["photo_url"] = photo_urls[0] if photo_urls else None
     
-    # Free text description
+    # Free text description with voice input
     st.markdown("<div class='sub-header'>📝 Describe Your Symptoms</div>", unsafe_allow_html=True)
-    free_text = st.text_area(
-        "Tell us more about how you're feeling",
-        placeholder="Describe your symptoms in detail... When did they start? How severe are they? Any other relevant information?",
-        height=150
+    
+    input_method = st.radio(
+        "Choose input method:",
+        ["⌨️ Type", "🎤 Voice Record"],
+        horizontal=True
     )
+    
+    free_text = ""
+    
+    if input_method == "⌨️ Type":
+        free_text = st.text_area(
+            "Tell us more about how you're feeling",
+            placeholder="Describe your symptoms in detail... When did they start? How severe are they? Any other relevant information?",
+            height=150,
+            key="text_input"
+        )
+    else:
+        st.info("🎤 Click the microphone button below to start recording. Speak clearly about your symptoms.")
+        
+        audio_bytes = st.audio_input("Record your symptoms")
+        
+        if audio_bytes:
+            st.success("✅ Audio recorded! Processing...")
+            
+            import tempfile
+            import os
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+                tmp_file.write(audio_bytes.getvalue())
+                audio_path = tmp_file.name
+            
+            try:
+                import speech_recognition as sr
+                recognizer = sr.Recognizer()
+                
+                with sr.AudioFile(audio_path) as source:
+                    audio_data = recognizer.record(source)
+                    free_text = recognizer.recognize_google(audio_data)
+                    
+                st.success(f"✅ Transcribed: {free_text}")
+                
+                free_text = st.text_area(
+                    "Edit transcription if needed:",
+                    value=free_text,
+                    height=150,
+                    key="voice_edit"
+                )
+                
+            except:
+                st.error("❌ Could not transcribe audio. Please use text input.")
+                free_text = st.text_area(
+                    "Type your symptoms:",
+                    placeholder="Describe your symptoms...",
+                    height=150,
+                    key="voice_fallback"
+                )
+            finally:
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
     
     # Submit button
     st.markdown("---")
@@ -641,59 +694,217 @@ def display_analysis_results(result: Dict[str, Any]):
 
 
 def dashboard_page():
-    """Dashboard page."""
+    """User-friendly dashboard with clear insights."""
     st.markdown("<div class='main-header'>📊 Your Health Dashboard</div>", unsafe_allow_html=True)
     
-    # Get sessions
+    insights = api_request("GET", "/api/v1/dashboard/insights", token=st.session_state["token"])
+    
+    if "error" in insights or insights.get("total_sessions", 0) == 0:
+        st.info("📝 No data yet. Start by logging your symptoms!")
+        return
+    
+    # Health Status Summary
+    st.markdown("### 🎯 Quick Health Summary")
+    col1, col2, col3 = st.columns(3)
+    
+    avg_sev = insights['avg_severity']
+    with col1:
+        status = "🚨 High" if avg_sev >= 7 else "⚠️ Moderate" if avg_sev >= 4 else "✅ Good"
+        st.metric("Health Status", status, f"Avg: {avg_sev}/10")
+    with col2:
+        st.metric("📝 Total Check-ins", insights["total_sessions"], "sessions logged")
+    with col3:
+        red_flags = insights["red_flag_count"]
+        st.metric("⚠️ Alerts", red_flags, "high severity" if red_flags > 0 else "all clear")
+    
+    st.markdown("---")
+    
+    # This Month Overview
+    st.markdown("### 📅 This Month at a Glance")
+    monthly = insights.get("monthly_overview", {})
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.info(f"📆 **{monthly.get('month', 'N/A')}**")
+    with col2:
+        st.success(f"📊 **{monthly.get('total_sessions', 0)}** sessions")
+    with col3:
+        sev = monthly.get('avg_severity', 0)
+        color = "error" if sev >= 7 else "warning" if sev >= 4 else "success"
+        getattr(st, color)(f"🎯 **{sev}/10** avg severity")
+    with col4:
+        st.info(f"📅 Most active: **{monthly.get('most_active_day', 'N/A')}**")
+    
+    st.markdown("---")
+    
+    # Current Week Trend
+    st.markdown("### 📈 This Week's Daily Severity")
+    weekly = insights.get("weekly_trend", [])
+    if weekly and any(d["avg_severity"] > 0 for d in weekly):
+        import pandas as pd
+        df = pd.DataFrame(weekly)
+        st.line_chart(df.set_index("day")["avg_severity"], use_container_width=True, height=300)
+        
+        active_days = [d for d in weekly if d["avg_severity"] > 0]
+        if active_days:
+            if len(active_days) >= 2:
+                trend = active_days[-1]["avg_severity"] - active_days[0]["avg_severity"]
+                if trend > 1:
+                    st.warning("⚠️ Your symptoms are worsening this week. Consider consulting a doctor.")
+                elif trend < -1:
+                    st.success("✅ Great! Your symptoms are improving this week!")
+                else:
+                    st.info("📊 Your symptoms are stable this week.")
+            st.caption(f"📅 You logged symptoms on {len(active_days)} day(s) this week")
+    else:
+        st.info("📝 No symptoms logged this week yet")
+    
+    st.markdown("---")
+    
+    # Two column layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 🔝 Your Most Common Symptoms")
+        top = insights.get("top_symptoms", {})
+        if top:
+            import pandas as pd
+            df = pd.DataFrame(list(top.items()), columns=["Symptom", "Count"])
+            st.bar_chart(df.set_index("Symptom"), height=300)
+            st.caption(f"💡 You've reported **{list(top.keys())[0]}** most frequently ({list(top.values())[0]} times)")
+        else:
+            st.info("No symptom data yet")
+    
+    with col2:
+        st.markdown("### 📊 Severity Distribution")
+        severity_dist = insights.get("severity_distribution", {})
+        if severity_dist and sum(severity_dist.values()) > 0:
+            import pandas as pd
+            df = pd.DataFrame(list(severity_dist.items()), columns=["Severity Level", "Count"])
+            st.bar_chart(df.set_index("Severity Level"), height=300, color="#ff6b6b")
+            
+            total = sum(severity_dist.values())
+            high_pct = round((severity_dist.get("High (7-10)", 0) / total) * 100)
+            if high_pct > 30:
+                st.warning(f"⚠️ {high_pct}% of your sessions are high severity")
+            elif severity_dist.get("Low (0-3)", 0) > total * 0.7:
+                st.success("✅ Most of your symptoms are mild")
+            else:
+                st.info(f"📊 {severity_dist.get('Moderate (4-6)', 0)} moderate severity sessions")
+        else:
+            st.info("Log more symptoms to see distribution")
+    
+    st.markdown("---")
+    
+    # Quick Stats
+    st.markdown("### 📋 Quick Stats")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📊 Total Symptoms Logged", insights["total_symptoms"])
+    with col2:
+        st.metric("🏥 Appointments Booked", insights["appointments_count"])
+    with col3:
+        avg_mood = insights.get("avg_mood", 0)
+        mood_emoji = "😊" if avg_mood >= 4 else "😐" if avg_mood >= 3 else "😔"
+        st.metric(f"{mood_emoji} Average Mood", f"{avg_mood}/5" if avg_mood > 0 else "N/A")
+    
+    st.markdown("---")
+    
+    # Health Tips
+    st.markdown("### 💡 Personalized Health Tips")
+    tips = []
+    
+    if insights["red_flag_count"] > 0:
+        tips.append("⚠️ You have high-severity symptoms. Please consult a healthcare professional.")
+    
+    if insights["avg_severity"] >= 6:
+        tips.append("🎯 Your average severity is concerning. Consider booking an appointment.")
+    elif insights["avg_severity"] < 3:
+        tips.append("✅ Your symptoms are mild. Keep monitoring and maintain healthy habits.")
+    
+    if insights["total_sessions"] >= 7:
+        tips.append("🎉 Great job tracking your health consistently!")
+    
+    if monthly.get("total_sessions", 0) == 0:
+        tips.append("📝 Remember to log your symptoms regularly for better insights.")
+    
+    avg_mood = insights.get("avg_mood", 0)
+    if avg_mood > 0:
+        if avg_mood >= 4:
+            tips.append(f"😊 Your average mood is good ({avg_mood}/5). Keep up the positive mindset!")
+        elif avg_mood <= 2:
+            tips.append(f"😔 Your mood has been low ({avg_mood}/5). Consider talking to someone.")
+    
+    for tip in tips:
+        st.info(tip)
+
+
+def history_page():
+    """User-friendly history page."""
+    st.markdown("<div class='main-header'>📋 Your Health History</div>", unsafe_allow_html=True)
+    
+    # Check if viewing details
+    if "view_session_id" in st.session_state:
+        view_session_details(st.session_state["view_session_id"])
+        if st.button("⬅️ Back to History", use_container_width=True):
+            del st.session_state["view_session_id"]
+            st.rerun()
+        return
+    
     result = api_request("GET", "/api/v1/dashboard/sessions", token=st.session_state["token"])
     
     if "error" in result:
-        st.error(f"❌ Error loading dashboard: {result['error']}")
+        st.error(f"❌ Error: {result['error']}")
         return
     
     sessions = result.get("sessions", [])
     
     if not sessions:
-        st.info("📝 No symptom logs yet. Start by logging your symptoms!")
+        st.info("📝 No sessions yet. Start by logging your symptoms!")
         return
     
-    # Statistics
-    st.markdown("<div class='sub-header'>📈 Statistics</div>", unsafe_allow_html=True)
-    col1, col2, col3, col4 = st.columns(4)
+    st.write(f"📊 **Total Sessions:** {len(sessions)}")
+    st.markdown("---")
     
-    with col1:
-        st.metric("Total Sessions", len(sessions))
-    with col2:
-        red_flags = sum(1 for s in sessions if s.get("red_flag"))
-        st.metric("Red Flags", red_flags)
-    with col3:
-        avg_severity = sum(s.get("severity_score", 0) for s in sessions) / len(sessions) if sessions else 0
-        st.metric("Avg Severity", f"{avg_severity:.1f}/10")
-    with col4:
-        recent = sessions[0] if sessions else {}
-        st.metric("Last Check", recent.get("start_time", "N/A")[:10] if recent else "N/A")
-    
-    # Session history
-    st.markdown("<div class='sub-header'>📋 Session History</div>", unsafe_allow_html=True)
-    
-    for session in sessions:
+    for i, session in enumerate(sessions, 1):
         severity = session.get("severity_score", 0)
-        red_flag = session.get("red_flag", False)
         
-        with st.expander(
-            f"{'🚨' if red_flag else '✅'} {session.get('start_time', 'N/A')[:19]} - Severity: {severity}/10"
-        ):
-            st.markdown(f"**Session ID:** {session.get('session_id', 'N/A')}")
-            st.markdown(f"**Severity:** {severity}/10")
-            st.markdown(f"**Red Flag:** {'Yes ⚠️' if red_flag else 'No ✅'}")
-            st.markdown(f"**AI Summary:** {session.get('ai_summary', 'No summary')}")
+        # Color coding
+        if severity >= 8:
+            icon = "🚨"
+            status = "HIGH SEVERITY"
+            color = "#ff4444"
+        elif severity >= 6:
+            icon = "⚠️"
+            status = "MODERATE"
+            color = "#ffaa00"
+        else:
+            icon = "✅"
+            status = "NORMAL"
+            color = "#44ff44"
+        
+        date_str = session.get('start_time', 'N/A')[:10] if session.get('start_time') else 'N/A'
+        time_str = session.get('start_time', 'N/A')[11:16] if session.get('start_time') else 'N/A'
+        
+        with st.expander(f"{icon} **Session #{len(sessions) - i + 1}** - {date_str} at {time_str} - {status}"):
+            col1, col2 = st.columns([2, 1])
             
-            if st.button("View Details", key=f"details_{session.get('session_id')}"):
-                view_session_details(session.get('session_id'))
+            with col1:
+                st.markdown(f"**🎯 Severity Score:** {severity}/10")
+                st.markdown(f"**⚠️ Alert Status:** {'High Priority' if session.get('red_flag') else 'Normal'}")
+                st.markdown(f"**📝 AI Summary:**")
+                st.write(session.get('ai_summary', 'No summary available'))
+            
+            with col2:
+                if st.button("🔍 View Full Details", key=f"view_{session.get('session_id')}", use_container_width=True):
+                    st.session_state["view_session_id"] = session.get('session_id')
+                    st.rerun()
 
 
 def view_session_details(session_id: str):
-    """View detailed session information."""
+    """View detailed session information with enhanced UI."""
+    st.markdown("<div class='main-header'>📄 Session Details</div>", unsafe_allow_html=True)
+    
     result = api_request(
         "GET",
         f"/api/v1/dashboard/session/{session_id}/details",
@@ -708,14 +919,45 @@ def view_session_details(session_id: str):
     symptoms = result.get("symptoms", [])
     chat_logs = result.get("chat_logs", [])
     
-    st.markdown("### 📝 Symptoms")
-    for symptom in symptoms:
-        st.markdown(f"- **{symptom['symptom']}**: Intensity {symptom['intensity']}/10")
+    # Session Overview
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Session ID", session.get('session_id', 'N/A')[:8])
+    with col2:
+        st.metric("Severity Score", f"{session.get('severity_score', 0)}/10")
+    with col3:
+        st.metric("Red Flag", "Yes ⚠️" if session.get('red_flag') else "No ✅")
     
-    st.markdown("### 💬 Chat Logs")
-    for log in chat_logs:
-        sender = "👤 You" if log['sender'] == 'patient' else "🤖 AI"
-        st.markdown(f"**{sender}:** {log['message']}")
+    # AI Summary
+    st.markdown("### 🤖 AI Analysis")
+    summary = session.get('ai_summary', 'No summary available')
+    if session.get('severity_score', 0) >= 8:
+        st.error(summary)
+    elif session.get('severity_score', 0) >= 6:
+        st.warning(summary)
+    else:
+        st.info(summary)
+    
+    # Symptoms
+    st.markdown("### 🔍 Symptoms Logged")
+    if symptoms:
+        for symptom in symptoms:
+            intensity = symptom.get('intensity', 0)
+            emoji = "🔴" if intensity >= 8 else "🟠" if intensity >= 5 else "🟢"
+            st.write(f"{emoji} **{symptom['symptom']}** - Intensity: {intensity}/10")
+            if symptom.get('notes'):
+                st.write(f"Notes: {symptom['notes']}")
+    else:
+        st.info("No symptoms logged")
+    
+    # Chat Logs
+    st.markdown("### 💬 Conversation History")
+    if chat_logs:
+        for log in chat_logs:
+            sender = "👤 You" if log.get('sender') == 'patient' else "🤖 AI"
+            st.write(f"**{sender}:** {log.get('message', '')}")
+    else:
+        st.info("No chat logs available")
 
 
 # Sidebar
@@ -732,7 +974,7 @@ def render_sidebar():
         
         page = st.sidebar.radio(
             "Navigation",
-            ["🌡️ Log Symptoms", "📊 Dashboard"],
+            ["🌡️ Log Symptoms", "📊 Dashboard", "📋 History"],
             label_visibility="collapsed"
         )
         
@@ -759,11 +1001,13 @@ def main():
             symptom_logger_page()
         elif page == "📊 Dashboard":
             dashboard_page()
+        elif page == "📋 History":
+            history_page()
     
     # Footer
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Value Health Inc.**")
-    st.sidebar.markdown("Version 2.0.0")
+    st.sidebar.markdown("Version 2.0.1")
     st.sidebar.markdown("*AI-Powered Healthcare*")
 
 

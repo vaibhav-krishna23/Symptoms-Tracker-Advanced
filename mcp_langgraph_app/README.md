@@ -214,9 +214,44 @@ async with FastMCPClient(server_script) as mcp_client:
 - **Modern Design**: Healthcare-themed with custom CSS
 - **Real-time Analysis**: Live AI processing with LangGraph
 - **Emergency Alerts**: Animated alerts for severe symptoms
-- **Appointment Booking**: One-click emergency appointment booking
-- **History Dashboard**: Comprehensive health history view
+- **Smart Appointment Booking**: User-controlled appointment booking (no auto-booking)
+- **Voice Input**: Record symptoms using speech-to-text (NEW!)
+- **Enhanced Dashboard**: Comprehensive health insights with visualizations
 - **Photo Upload**: Upload symptom photos
+- **Separate Pages**: Log Symptoms, Dashboard, and History
+
+### 🎤 Voice Recording Feature (NEW!)
+
+- **Speech-to-Text**: Record symptoms using your voice
+- **Google Speech Recognition**: Free, accurate transcription
+- **Editable Transcription**: Review and edit before submitting
+- **Fallback Option**: Type manually if voice fails
+- **Simple Integration**: Uses Streamlit's built-in audio input
+
+### 📊 Enhanced Dashboard (v2.0.1)
+
+**Separate Navigation Pages:**
+- 🌡️ **Log Symptoms** - Dedicated symptom logging with voice/text input
+- 📊 **Dashboard** - Comprehensive health analytics
+- 📋 **History** - Complete session history with details
+
+**Dashboard Features:**
+- **Quick Health Summary**: Status, check-ins, alerts at a glance
+- **This Month Overview**: Current month statistics with color coding
+- **Current Week Trend**: Daily severity chart (Mon-Sun)
+- **Trend Interpretation**: AI insights (improving/worsening/stable)
+- **Top Symptoms**: Bar chart of most common symptoms
+- **Severity Distribution**: Low/Moderate/High breakdown
+- **Quick Stats**: Total symptoms, appointments, average mood
+- **Personalized Tips**: Context-aware health recommendations
+
+**History Features:**
+- **Session Numbering**: Easy tracking (Session #1, #2, etc.)
+- **Color-Coded Status**: Red (high), Orange (moderate), Green (normal)
+- **Detailed View**: Complete session breakdown with symptoms and chat logs
+- **Back Navigation**: Easy return to history list
+
+See [DASHBOARD_FEATURE.md](DASHBOARD_FEATURE.md) for technical details.
 
 ## 🔐 Security Features
 
@@ -345,6 +380,28 @@ v2.0 is **backward compatible** with v1.0:
 
 ---
 
-**Version**: 2.0.0-fastmcp  
-**Powered by**: FastMCP + LangGraph + Google Gemini AI  
+**Version**: 2.0.1  
+**Powered by**: FastMCP + LangGraph + Google Gemini AI + Speech Recognition  
 **Developed by**: Value Health AI Inc.
+
+## 🆕 Version 2.0.1 Updates
+
+### New Features
+- ✅ Voice recording for symptom description
+- ✅ Separate navigation pages (Log Symptoms, Dashboard, History)
+- ✅ Current week daily severity trend (instead of 4-week)
+- ✅ Severity distribution chart
+- ✅ Average mood tracking
+- ✅ User-controlled appointment booking (no auto-booking)
+- ✅ Enhanced dashboard with personalized insights
+- ✅ Improved session history with color coding
+
+### Dependencies Added
+- `SpeechRecognition` - Voice-to-text conversion
+- `PyAudio` - Audio recording support
+- `pandas` - Data manipulation for charts
+
+### Bug Fixes
+- Fixed timezone handling in dashboard insights
+- Fixed session details view navigation
+- Improved error handling in API endpoints

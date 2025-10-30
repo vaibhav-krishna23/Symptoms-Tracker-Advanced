@@ -297,6 +297,46 @@ User Submits Symptoms
 
 ---
 
+## 🐳 Docker Deployment
+
+### Docker Images Available
+
+**Docker Hub**: `vaibhav547/symptom-tracker-api:latest` and `vaibhav547/symptom-tracker-web:latest`
+
+### Quick Start with Docker Compose
+
+```bash
+# Run with docker-compose
+docker-compose up -d
+
+# Access
+# Frontend: http://localhost:8501
+# API: http://localhost:8000
+```
+
+### Manual Docker Run
+
+```bash
+# API
+docker run -p 8000:8000 --env-file .env vaibhav547/symptom-tracker-api:latest
+
+# Web
+docker run -p 8501:8501 -e API_BASE=http://localhost:8000 vaibhav547/symptom-tracker-web:latest
+```
+
+### Cloud Deployment (Render)
+
+See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for detailed Render deployment guide.
+
+**Quick Deploy**:
+1. Push images to Docker Hub (already done)
+2. Create API service on Render with image `vaibhav547/symptom-tracker-api:latest`
+3. Create Web service on Render with image `vaibhav547/symptom-tracker-web:latest`
+4. Set environment variables
+5. Deploy!
+
+---
+
 ## 🧪 Testing Emergency Workflow
 
 1. Register with your city name
